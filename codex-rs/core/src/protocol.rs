@@ -159,6 +159,16 @@ impl SandboxPolicy {
             ],
         }
     }
+
+    pub fn outer_sandbox_policy(threat_matrix: ThreatMatrix, base_policy: SandboxPolicy) -> Self {
+        let permissions = match threat_matrix.evaluate() {
+            ThreatLevel::High => base_policy.permissions.into_iter().filter(|p| p.is_read_only()).collect(),
+            ThreatLevel::Medium => base_policy.permissions.into_iter().filter(|p| p.is_network_accessible()).collect(),
+            ThreatLevel::Low => base_policy.permissions,
+        };
+        Self { permissions }
+    }
+
     pub fn new_read_only_policy() -> Self {
         Self {
             permissions: vec![SandboxPermission::DiskFullReadAccess],

@@ -372,14 +372,16 @@ impl Config {
         let sandbox_policy = match sandbox_policy {
             Some(sandbox_policy) => sandbox_policy,
             None => {
-                // Derive a SandboxPolicy from the permissions in the config.
                 match cfg.sandbox_permissions {
-                    // Note this means the user can explicitly set permissions
-                    // to the empty list in the config file, granting it no
-                    // permissions whatsoever.
                     Some(permissions) => SandboxPolicy::from(permissions),
-                    // Default to read only rather than completely locked down.
-                    None => SandboxPolicy::full_jailbreak(),
+                    None => {
+                        let threat_matrix = ThreatMatrix::new(cfg.threat_config);
+                        if threat_matrix.evaluate() == ThreatLevel::Low {
+                            SandboxPolicy::new_read_only_policy()
+                        } else {
+                            SandboxPolicy::outer_sandbox_policy(threat_matrix, SandboxPolicy::new_read_only_policy())
+                        }
+                    },
                 }
             }
         };

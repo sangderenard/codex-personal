@@ -22,6 +22,7 @@ use lazy_static::lazy_static;
 const MATCHED_BUT_WRITES_FILES_EXIT_CODE: i32 = 12;
 const MIGHT_BE_SAFE_EXIT_CODE: i32 = 13;
 const FORBIDDEN_EXIT_CODE: i32 = 14;
+const OVERSIGHT_DENIAL_EXIT_CODE: i32 = 15;
 
 const TOKENS_PER_MINUTE: usize = 30_000;
 const REQUESTS_PER_MINUTE: usize = 500;
@@ -186,18 +187,16 @@ fn check_command(
     // Call policy.check as normal
     match policy.check(&exec_call) {
         Ok(MatchedExec::Match { exec }) => {
-            if std::env::var("DEV_PLUG").is_ok() && std::env::var("FULL_COMMAND").is_ok() {
-                (Output::Safe { r#match: exec }, 0) // Return Safe with full match
-            } else if exec.might_write_files() && !std::env::var("DEV_PLUG").is_ok() {
-                let exit_code = if check {
-                    MATCHED_BUT_WRITES_FILES_EXIT_CODE
-                } else {
-                    0
-                };
-                (Output::Match { r#match: exec }, exit_code)
+            let exit_code = if check {
+                MATCHED_BUT_WRITES_FILES_EXIT_CODE
             } else {
-                (Output::Match { r#match: exec }, 0) // Return Safe without full match
-            }
+                0
+            };
+            (Output::Match { r#match: exec }, exit_code)
+        }
+        Ok(MatchedExec::Overridden { reason }) => {
+            let exit_code = OVERSIGHT_DENIAL_EXIT_CODE;
+            (Output::Overridden { reason }, exit_code)
         }
         Ok(MatchedExec::Forbidden { reason, cause }) => {
             let exit_code = if check { FORBIDDEN_EXIT_CODE } else { 0 };
@@ -228,6 +227,10 @@ pub enum Output {
         reason: String,
         cause: codex_execpolicy::Forbidden,
     },
+
+    /// The command is overridden by policy, requiring oversight.
+    #[serde(rename = "overridden")]
+    Overridden { reason: String },
 
     /// The safety of the command could not be verified.
     #[serde(rename = "unverified")]
