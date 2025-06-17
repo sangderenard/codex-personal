@@ -15,7 +15,7 @@ use crate::valid_exec::MatchedFlag;
 use crate::valid_exec::MatchedOpt;
 use crate::valid_exec::ValidExec;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ProgramSpec {
     pub program: String,
     pub system_path: Vec<String>,

@@ -130,8 +130,19 @@ fn is_executable_file(path: &str) -> bool {
 
         #[cfg(windows)]
         {
-            // TODO(mbolin): Check against PATHEXT environment variable.
-            return metadata.is_file();
+            if !metadata.is_file() {
+                return false;
+            }
+            // Determine whether the file extension is listed in PATHEXT.
+            if let Some(ext) = file_path.extension().and_then(|e| e.to_str()) {
+                let pathext = std::env::var("PATHEXT").unwrap_or_default();
+                for allowed in pathext.split(';') {
+                    if allowed.trim_start_matches('.').eq_ignore_ascii_case(ext) {
+                        return true;
+                    }
+                }
+            }
+            false
         }
     }
 
@@ -279,5 +290,20 @@ system_path=[{fake_cp:?}]
             }),
         );
         Ok(())
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_is_executable_file_respects_pathext() {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(file, "echo hi").unwrap();
+        let path = file.path().with_extension("cmd");
+        std::fs::rename(file.path(), &path).unwrap();
+
+        std::env::set_var("PATHEXT", ".COM;.CMD;.BAT");
+        assert!(is_executable_file(path.to_str().unwrap()));
     }
 }
