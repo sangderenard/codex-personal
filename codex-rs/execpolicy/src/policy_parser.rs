@@ -71,7 +71,7 @@ impl PolicyParser {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ForbiddenProgramRegex {
     pub regex: regex_lite::Regex,
     pub reason: String,
