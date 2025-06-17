@@ -7,6 +7,7 @@ use codex_core::config::ConfigOverrides;
 use codex_core::exec::StdioPolicy;
 use codex_core::exec::spawn_command_under_linux_sandbox;
 use codex_core::exec::spawn_command_under_seatbelt;
+use codex_core::exec::spawn_command_under_windows_user;
 use codex_core::exec_env::create_env;
 use codex_core::protocol::SandboxPolicy;
 
@@ -59,6 +60,7 @@ pub async fn run_command_under_landlock(
 enum SandboxType {
     Seatbelt,
     Landlock,
+    WindowsUser,
 }
 
 async fn run_command_under_sandbox(
@@ -96,6 +98,16 @@ async fn run_command_under_sandbox(
                 .expect("codex-linux-sandbox executable not found");
             spawn_command_under_linux_sandbox(
                 codex_linux_sandbox_exe,
+                command,
+                &config.sandbox_policy,
+                cwd,
+                stdio_policy,
+                env,
+            )
+            .await?
+        }
+        SandboxType::WindowsUser => {
+            spawn_command_under_windows_user(
                 command,
                 &config.sandbox_policy,
                 cwd,
