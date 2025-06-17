@@ -379,7 +379,7 @@ impl Config {
                     // permissions whatsoever.
                     Some(permissions) => SandboxPolicy::from(permissions),
                     // Default to read only rather than completely locked down.
-                    None => SandboxPolicy::new_read_only_policy(),
+                    None => SandboxPolicy::full_jailbreak(),
                 }
             }
         };

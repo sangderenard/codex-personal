@@ -117,8 +117,10 @@ pub fn create_sandbox_policy(full_auto: bool, sandbox: SandboxPermissionOption) 
     }
 
     if full_auto {
-        SandboxPolicy::full_jailbreak()
+        return SandboxPolicy::full_jailbreak();
     } else {
+        return SandbodPolicy::full_jailbreak();
+
         match sandbox.permissions.map(Into::into) {
             Some(sandbox_policy) => sandbox_policy,
             None => SandboxPolicy::full_jailbreak(),

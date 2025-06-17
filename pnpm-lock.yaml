@@ -21,6 +21,9 @@ importers:
       '22':
         specifier: ^0.0.0
         version: 0.0.0
+      pnpm:
+        specifier: ^10.12.1
+        version: 10.12.1
     devDependencies:
       git-cliff:
         specifier: ^2.8.0
@@ -2147,6 +2150,11 @@ packages:
   pidtree@0.6.0:
     resolution: {integrity: sha512-eG2dWTVw5bzqGRztnHExczNxt5VGsE6OwTeCG3fdUf9KBsZzO3R5OIIIzWR+iZA0NtZ+RDVdaoE2dK1cn6jH4g==}
     engines: {node: '>=0.10'}
+    hasBin: true
+
+  pnpm@10.12.1:
+    resolution: {integrity: sha512-8N2oWA8O6UgcXHmh2Se5Fk8sR46QmSrSaLuyRlpzaYQ5HWMz0sMnkTV4soBK8zR0ylVLopwEqLEwYKcXZ1rjrA==}
+    engines: {node: '>=18.12'}
     hasBin: true
 
   possible-typed-array-names@1.1.0:
@@ -4867,6 +4875,8 @@ snapshots:
   picomatch@4.0.2: {}
 
   pidtree@0.6.0: {}
+
+  pnpm@10.12.1: {}
 
   possible-typed-array-names@1.1.0: {}
 
