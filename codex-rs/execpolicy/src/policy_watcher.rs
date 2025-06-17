@@ -12,6 +12,7 @@ use crate::{Policy, PolicyParser};
 #[derive(Debug)]
 pub struct PolicyWatcher {
     policy: Arc<Mutex<Policy>>,
+    path: PathBuf,
     #[allow(dead_code)]
     watcher: RecommendedWatcher,
 }
@@ -42,11 +43,23 @@ impl PolicyWatcher {
         })?;
         watcher.watch(&path, RecursiveMode::NonRecursive)?;
 
-        Ok(Self { policy, watcher })
+        Ok(Self { policy, path, watcher })
     }
 
     /// Returns a clone of the current policy.
     pub fn policy(&self) -> Policy {
         self.policy.lock().expect("lock poisoned").clone()
+    }
+
+    /// Reloads the policy from disk immediately.
+    pub fn reload(&self) -> anyhow::Result<()> {
+        let unparsed = std::fs::read_to_string(&self.path)
+            .with_context(|| format!("reading {}", self.path.display()))?;
+        let parser = PolicyParser::new(&self.path.to_string_lossy(), &unparsed);
+        let parsed = parser.parse().map_err(|e| anyhow::anyhow!(e))?;
+        if let Ok(mut lock) = self.policy.lock() {
+            *lock = parsed;
+        }
+        Ok(())
     }
 }
