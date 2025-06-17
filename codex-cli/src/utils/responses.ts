@@ -4,6 +4,23 @@ import type {
   Response,
 } from "openai/resources/responses/responses";
 
+import { FrameMessenger } from './FrameMessenger';
+import winston from 'winston';
+import { createRateLimiter, ReservoirLimiter } from './rateLimiter';
+
+// Configure Winston logger
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({ filename: 'responses.log' })
+  ]
+});
+
 // Define interfaces based on OpenAI API documentation
 type ResponseCreateInput = ResponseCreateParams;
 type ResponseOutput = Response;
@@ -261,57 +278,319 @@ function convertTools(
     }));
 }
 
-const createCompletion = (openai: OpenAI, input: ResponseCreateInput) => {
+// --- Provider abstraction and windowing skeletons ---
+
+/**
+ * Utility to window/prune messages to fit a model's token limit.
+ * This should use a tokenizer for the target model and trim/prune/merge as needed.
+ * For now, this is a stub.
+ */
+function estimateTokensForMessages(
+  messages: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam>,
+  charsPerToken = 4
+): number {
+  // Simple heuristic: count total chars, divide by charsPerToken
+  const totalChars = messages.reduce((sum, m) => {
+    let contentLength = 0;
+    if (typeof m.content === "string") {
+      contentLength = m.content.length;
+    } else if (Array.isArray(m.content)) {
+      contentLength = (m.content as any[]).reduce((acc, c) => {
+        if (typeof c === "string") return acc + c.length;
+        if (typeof c === "object" && c !== null && "text" in c && typeof c.text === "string") return acc + c.text.length;
+        return acc;
+      }, 0);
+    }
+    return sum + contentLength;
+  }, 0);
+  return Math.ceil(totalChars / charsPerToken);
+}
+
+function windowMessagesForModel(
+  messages: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam>,
+  model: string, // TODO: Use for model-specific windowing
+  maxTokens: number // TODO: Use for token limit
+): Array<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
+  void model; // suppress unused warning
+  void maxTokens; // suppress unused warning
+  // Estimate tokens and trim from the start if needed
+  let windowed = [...messages];
+  while (estimateTokensForMessages(windowed) > maxTokens && windowed.length > 1) {
+    windowed.shift(); // Remove oldest message
+  }
+  return windowed;
+}
+
+/**
+ * Splits messages into windows that fit within the token limit.
+ * Returns an array of message arrays (windows).
+ */
+function splitMessagesIntoWindows(
+  messages: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam>,
+  model: string,
+  maxTokens: number
+): Array<Array<OpenAI.Chat.Completions.ChatCompletionMessageParam>> {
+  const windows: Array<Array<OpenAI.Chat.Completions.ChatCompletionMessageParam>> = [];
+  let current: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam> = [];
+  for (const msg of messages) {
+    current.push(msg);
+    if (estimateTokensForMessages(current) > maxTokens) {
+      // Remove the last message, start a new window
+      current.pop();
+      if (current.length > 0) windows.push(current);
+      current = [msg];
+    }
+  }
+  if (current.length > 0) windows.push(current);
+  return windows;
+}
+
+/**
+ * Sends each window as a separate API call, with framing instructions.
+ * After all windows, sends a final synthesis prompt.
+ * Allows custom frame header/footer and rate limiting.
+ */
+async function sendFramedWindows(
+  provider: ChatCompletionProvider,
+  baseMessages: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam>,
+  model: string,
+  maxTokens: number,
+  options: any,
+  rateLimiter?: ReservoirLimiter,
+  frameMessenger?: FrameMessenger,
+): Promise<any> {
+  const windows = splitMessagesIntoWindows(baseMessages, model, maxTokens);
+  logger.info('Starting framed window processing', { totalWindows: windows.length });
+
+  for (let i = 0; i < windows.length; ++i) {
+    const headerMsg = ({
+      role: "system",
+      content: frameMessenger?.getHeader(i, windows.length)
+    } as OpenAI.Chat.Completions.ChatCompletionSystemMessageParam);
+    const footerMsg = ({
+      role: "system",
+      content: frameMessenger?.getFooter(i, windows.length)
+    } as OpenAI.Chat.Completions.ChatCompletionSystemMessageParam);
+
+    let windowWithFrame: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [headerMsg, ...windows[i]!];
+    windowWithFrame.push(footerMsg);
+
+    const chunkTokens = estimateTokensForMessages(windowWithFrame, 4);
+    logger.info('Processing chunk', { chunkIndex: i + 1, totalChunks: windows.length, tokens: chunkTokens });
+
+    if (rateLimiter) {
+      await rateLimiter.schedule({ weight: chunkTokens }, () => Promise.resolve());
+    }
+
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await provider.createChatCompletion(windowWithFrame, options);
+      logger.info('Chunk processed successfully', { chunkIndex: i + 1 });
+    } catch (error: any) { // Explicitly type `error` as `any` or `Error`
+      logger.error('Error processing chunk', { chunkIndex: i + 1, error: error.message });
+      throw error;
+    }
+  }
+
+  const finalMsg: OpenAI.Chat.Completions.ChatCompletionMessageParam = {
+    role: "system",
+    content: frameMessenger?.getInstructions(windows.length, windows.length)
+  } as OpenAI.Chat.Completions.ChatCompletionSystemMessageParam;
+
+  const allMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [finalMsg, ...baseMessages];
+  const finalTokens = estimateTokensForMessages(allMessages, 4);
+  logger.info('Sending final synthesis message', { tokens: finalTokens });
+
+  if (rateLimiter) {
+    await rateLimiter.schedule({ weight: finalTokens }, () => Promise.resolve());
+  }
+
+  try {
+    return provider.createChatCompletion(allMessages, options);
+  } catch (error: any) { // Explicitly type `error` as `any` or `Error`
+    logger.error('Error during final synthesis', { error: error.message });
+    throw error;
+  }
+}
+
+/**
+ * Abstracted chat completion provider interface.
+ */
+interface ChatCompletionProvider {
+  createChatCompletion(
+    messages: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam>,
+    options: {
+      model: string;
+      tools?: any;
+      temperature?: number;
+      top_p?: number;
+      tool_choice?: any;
+      stream?: boolean;
+      user?: string;
+      metadata?: any;
+      maxTokens?: number;
+    }
+  ): Promise<any>;
+}
+
+/**
+ * OpenAI provider implementation (skeleton).
+ */
+class OpenAIProvider implements ChatCompletionProvider {
+  constructor(private openai: OpenAI) {}
+  async createChatCompletion(
+    messages: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam>,
+    options: {
+      model: string;
+      tools?: any;
+      temperature?: number;
+      top_p?: number;
+      tool_choice?: any;
+      stream?: boolean;
+      user?: string;
+      metadata?: any;
+      maxTokens?: number;
+    }
+  ): Promise<any> {
+    // TODO: Add windowing here if needed
+    return this.openai.chat.completions.create({
+      model: options.model,
+      messages,
+      tools: options.tools,
+      temperature: options.temperature,
+      top_p: options.top_p,
+      tool_choice: options.tool_choice,
+      stream: options.stream,
+      user: options.user,
+      metadata: options.metadata,
+    });
+  }
+}
+
+function getProvider(provider: string, openai: OpenAI): ChatCompletionProvider {
+  // TODO: Add Gemini, Claude, etc. here
+  if (!provider || provider.toLowerCase() === "openai") {
+    return new OpenAIProvider(openai);
+  }
+  throw new Error(`Unknown provider: ${provider}`);
+}
+
+// --- Refactored createCompletion to use provider abstraction and windowing ---
+
+const createCompletion = (
+  openai: OpenAI,
+  input: ResponseCreateInput,
+  providerName: string = "openai"
+) => {
   const fullMessages = getFullMessages(input);
   const chatTools = convertTools(input.tools);
-  const webSearchOptions = input.tools?.some(
-    (tool) => tool.type === "function" && tool.name === "web_search",
-  )
-    ? {}
-    : undefined;
-
-  const chatInput: OpenAI.Chat.Completions.ChatCompletionCreateParams = {
+  // Window messages before sending to provider
+  const windowedMessages = windowMessagesForModel(
+    fullMessages,
+    input.model,
+    4096 // TODO: Use model-specific max tokens
+  );
+  const provider = getProvider(providerName, openai);
+  return provider.createChatCompletion(windowedMessages, {
     model: input.model,
-    messages: fullMessages,
     tools: chatTools,
-    web_search_options: webSearchOptions,
-    temperature: input.temperature,
-    top_p: input.top_p,
-    tool_choice: (input.tool_choice === "auto"
+    temperature: input.temperature ?? undefined,
+    top_p: input.top_p ?? undefined,
+    tool_choice: input.tool_choice === "auto"
       ? "auto"
-      : input.tool_choice) as OpenAI.Chat.Completions.ChatCompletionCreateParams["tool_choice"],
+      : input.tool_choice,
     stream: input.stream || false,
     user: input.user,
     metadata: input.metadata,
-  };
-
-  return openai.chat.completions.create(chatInput);
+    maxTokens: 4096, // TODO: Use model-specific max tokens
+  });
 };
 
 // Main function with overloading
 async function responsesCreateViaChatCompletions(
   openai: OpenAI,
   input: ResponseCreateInput & { stream: true },
+  rateLimiter?: ReservoirLimiter,
 ): Promise<AsyncGenerator<ResponseEvent>>;
 async function responsesCreateViaChatCompletions(
   openai: OpenAI,
   input: ResponseCreateInput & { stream?: false },
+  rateLimiter?: ReservoirLimiter,
 ): Promise<ResponseOutput>;
 async function responsesCreateViaChatCompletions(
   openai: OpenAI,
   input: ResponseCreateInput,
+  rateLimiter?: ReservoirLimiter,
+  rateLimiterConfig?: {
+    TPM: number; // Tokens per minute
+    RPM: number; // Requests per minute
+    INTERVAL?: number; // Interval in milliseconds for refreshing tokens
+    MARGIN?: number; // Margin to prevent overuse
+  }
 ): Promise<ResponseOutput | AsyncGenerator<ResponseEvent>> {
-  const completion = await createCompletion(openai, input);
-  if (input.stream) {
-    return streamResponses(
-      input,
-      completion as AsyncIterable<OpenAI.ChatCompletionChunk>,
-    );
+  logger.info('Starting response creation', { inputModel: input.model });
+
+  let currentRateLimiter: ReservoirLimiter;
+  if (rateLimiter) {
+    currentRateLimiter = rateLimiter;
   } else {
-    return nonStreamResponses(
-      input,
-      completion as unknown as OpenAI.Chat.Completions.ChatCompletion,
+    const {
+      TPM = 30000, // Default: 30,000 tokens per minute
+      RPM = 500, // Default: 500 requests per minute
+      INTERVAL = 120, // Default: Refresh every 120ms
+      MARGIN = 0.9, // Default: 90% margin
+    } = rateLimiterConfig || {};
+
+    currentRateLimiter = createRateLimiter(TPM, RPM, INTERVAL, MARGIN);
+  }
+
+  // Log the reservoir size whenever tokens are consumed
+  logger.info('Rate limiter reservoir updated', {
+    reservoirSize: currentRateLimiter.getLastReservoir(),
+  });
+
+  // --- Windowing/Chunking Orchestration ---
+  const fullMessages = getFullMessages(input);
+  const maxTokens = 4096;
+  const estimatedTokens = estimateTokensForMessages(fullMessages, 4);
+  const provider = getProvider("openai", openai);
+  const options = {
+    model: input.model,
+    tools: convertTools(input.tools),
+    temperature: input.temperature ?? undefined,
+    top_p: input.top_p ?? undefined,
+    tool_choice: input.tool_choice === "auto" ? "auto" : input.tool_choice,
+    stream: input.stream || false,
+    user: input.user,
+    metadata: input.metadata,
+    maxTokens,
+  };
+
+  if (estimatedTokens > maxTokens) {
+    const messenger = new FrameMessenger(__dirname);
+    logger.info('Using chunked windowing', { estimatedTokens, maxTokens });
+
+    return sendFramedWindows(
+      provider,
+      fullMessages,
+      input.model,
+      maxTokens,
+      options,
+      currentRateLimiter,
+      messenger,
     );
+  }
+
+  try {
+    const completion = await createCompletion(openai, input);
+    logger.info('Response created successfully', { model: input.model });
+    return input.stream
+      ? streamResponses(input, completion as AsyncIterable<OpenAI.ChatCompletionChunk>, currentRateLimiter)
+      : nonStreamResponses(input, completion as unknown as OpenAI.Chat.Completions.ChatCompletion, currentRateLimiter);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error('Error during response creation', { error: errorMessage });
+    throw error;
   }
 }
 
@@ -319,6 +598,7 @@ async function responsesCreateViaChatCompletions(
 async function nonStreamResponses(
   input: ResponseCreateInput,
   completion: OpenAI.Chat.Completions.ChatCompletion,
+  rateLimiter: ReservoirLimiter,
 ): Promise<ResponseOutput> {
   const fullMessages = getFullMessages(input);
 
@@ -435,8 +715,15 @@ async function nonStreamResponses(
       messages: newHistory,
     });
 
+    if (completion.usage) {
+      const tokenCount = completion.usage.total_tokens || 0;
+      await rateLimiter.schedule({ weight: tokenCount }, () => Promise.resolve());
+    } else {
+      console.warn("Rate limiter invoked without usage data. Ensure token tracking is accurate.");
+    }
+
     return responseOutput;
-  } catch (error) {
+  } catch (error: any) { // Explicitly type `error` as `any` or `Error`
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to process chat completion: ${errorMessage}`);
   }
@@ -446,6 +733,7 @@ async function nonStreamResponses(
 async function* streamResponses(
   input: ResponseCreateInput,
   completion: AsyncIterable<OpenAI.ChatCompletionChunk>,
+  rateLimiter: ReservoirLimiter,
 ): AsyncGenerator<ResponseEvent> {
   const fullMessages = getFullMessages(input);
 
@@ -486,10 +774,15 @@ async function* streamResponses(
   yield { type: "response.in_progress", response: initialResponse };
   let isToolCall = false;
   for await (const chunk of completion as AsyncIterable<OpenAI.ChatCompletionChunk>) {
-    // console.error('\nCHUNK: ', JSON.stringify(chunk));
     const choice = chunk.choices?.[0];
     if (!choice) {
       continue;
+    }
+    if (chunk.usage) {
+      const tokenCount = chunk.usage.total_tokens || 0;
+      await rateLimiter.schedule({ weight: tokenCount }, () => Promise.resolve());
+    } else {
+      console.warn("Rate limiter invoked without chunk usage data. Ensure token tracking is accurate.");
     }
     if (
       !isToolCall &&
@@ -708,6 +1001,7 @@ async function* streamResponses(
     yield { type: "response.completed", response: finalResponse };
   }
 }
+
 
 export {
   responsesCreateViaChatCompletions,

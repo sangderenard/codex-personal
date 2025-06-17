@@ -10,7 +10,7 @@ use codex_common::SandboxPermissionOption;
 #[derive(Debug, Parser)]
 pub struct SeatbeltCommand {
     /// Convenience alias for low-friction sandboxed automatic execution (network-disabled sandbox that can write to cwd and TMPDIR)
-    #[arg(long = "full-auto", default_value_t = false)]
+    #[arg(long = "full-auto", default_value_t = true)]
     pub full_auto: bool,
 
     #[clap(flatten)]

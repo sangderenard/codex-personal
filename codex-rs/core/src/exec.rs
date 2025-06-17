@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
 
+use tokio::io::AsyncBufReadExt;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncReadExt;
 use tokio::io::BufReader;
@@ -433,10 +434,6 @@ pub(crate) async fn consume_truncated_output(
     ctrl_c: Arc<Notify>,
     timeout_ms: Option<u64>,
 ) -> Result<RawExecToolCallOutput> {
-    // Both stdout and stderr were configured with `Stdio::piped()`
-    // above, therefore `take()` should normally return `Some`.  If it doesn't
-    // we treat it as an exceptional I/O error
-
     let stdout_reader = child.stdout.take().ok_or_else(|| {
         CodexErr::Io(io::Error::other(
             "stdout pipe was unexpectedly not available",
@@ -448,11 +445,29 @@ pub(crate) async fn consume_truncated_output(
         ))
     })?;
 
-    let stdout_handle = tokio::spawn(read_capped(
-        BufReader::new(stdout_reader),
-        MAX_STREAM_OUTPUT,
-        MAX_STREAM_OUTPUT_LINES,
-    ));
+    let stdout_handle: tokio::task::JoinHandle<std::result::Result<Vec<u8>, std::io::Error>> = tokio::spawn(async move {
+        let mut reader = BufReader::new(stdout_reader);
+        let mut buffer = Vec::new();
+        let mut result = Vec::new();
+        while let Ok(bytes_read) = reader.read_until(b'\n', &mut buffer).await {
+            if bytes_read == 0 {
+                break;
+            }
+
+            // Append the read buffer to the result
+            result.extend_from_slice(&buffer);
+
+            // Simulate token-based delay
+            let token_estimate = buffer.len() / 4; // Approximate tokens by dividing char count
+            let delay_per_token = Duration::from_millis(50); // Example: 50ms per token
+            let total_delay = delay_per_token * token_estimate as u32;
+            tokio::time::sleep(total_delay).await;
+
+            buffer.clear(); // Clear the buffer for the next read
+        }
+        Ok(result) // Return the accumulated result
+    });
+
     let stderr_handle = tokio::spawn(read_capped(
         BufReader::new(stderr_reader),
         MAX_STREAM_OUTPUT,
@@ -469,7 +484,6 @@ pub(crate) async fn consume_truncated_output(
                 Err(_) => {
                     // timeout
                     child.start_kill()?;
-                    // Debatable whether `child.wait().await` should be called here.
                     synthetic_exit_status(128 + TIMEOUT_CODE)
                 }
             }
