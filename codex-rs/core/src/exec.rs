@@ -72,6 +72,9 @@ pub enum SandboxType {
 
     /// Only available on Linux.
     LinuxSeccomp,
+
+    /// Experimental Windows sandbox using a restricted user.
+    WindowsUser,
 }
 
 pub async fn process_exec_tool_call(
@@ -115,6 +118,25 @@ pub async fn process_exec_tool_call(
                 .ok_or(CodexErr::LandlockSandboxExecutableNotProvided)?;
             let child = spawn_command_under_linux_sandbox(
                 codex_linux_sandbox_exe,
+                command,
+                sandbox_policy,
+                cwd,
+                StdioPolicy::RedirectForShellTool,
+                env,
+            )
+            .await?;
+
+            consume_truncated_output(child, ctrl_c, timeout_ms).await
+        }
+        SandboxType::WindowsUser => {
+            let ExecParams {
+                command,
+                cwd,
+                timeout_ms,
+                env,
+            } = params;
+
+            let child = spawn_command_under_windows_user(
                 command,
                 sandbox_policy,
                 cwd,
@@ -218,6 +240,32 @@ where
         env,
     )
     .await
+}
+
+/// Placeholder for running a command under a restricted Windows user sandbox.
+pub async fn spawn_command_under_windows_user(
+    command: Vec<String>,
+    sandbox_policy: &SandboxPolicy,
+    cwd: PathBuf,
+    stdio_policy: StdioPolicy,
+    env: HashMap<String, String>,
+) -> std::io::Result<Child> {
+    #[cfg(windows)]
+    {
+        let _ = (command, sandbox_policy, cwd, stdio_policy, env);
+        // TODO: implement creation of a restricted user and run the command
+        // within that user context.
+        unimplemented!("Windows sandbox not yet implemented");
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = (command, sandbox_policy, cwd, stdio_policy, env);
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "Windows sandbox is only available on Windows targets",
+        ))
+    }
 }
 
 /// Converts the sandbox policy into the CLI invocation for `codex-linux-sandbox`.
