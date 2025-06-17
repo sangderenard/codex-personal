@@ -142,11 +142,11 @@ fn is_executable_file(path: &str) -> bool {
                     }
                 }
             }
-            false
+            return false
         }
     }
 
-    false
+    return false
 }
 
 #[cfg(test)]
