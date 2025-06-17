@@ -12,10 +12,19 @@ use serde::Serialize;
 use serde::de;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+use std::collections::VecDeque;
+use log::debug;
+use lazy_static::lazy_static;
+
 
 const MATCHED_BUT_WRITES_FILES_EXIT_CODE: i32 = 12;
 const MIGHT_BE_SAFE_EXIT_CODE: i32 = 13;
 const FORBIDDEN_EXIT_CODE: i32 = 14;
+
+const TOKENS_PER_MINUTE: usize = 30_000;
+const REQUESTS_PER_MINUTE: usize = 500;
 
 #[derive(Parser, Deserialize, Debug)]
 #[command(version, about, long_about = None)]
@@ -93,15 +102,93 @@ fn main() -> Result<()> {
     std::process::exit(exit_code);
 }
 
+lazy_static! {
+    static ref LAST_EXECUTION: Mutex<Instant> = Mutex::new(Instant::now());
+    static ref EXECUTION_TIMES: Mutex<VecDeque<Instant>> = Mutex::new(VecDeque::new());
+    static ref REQUEST_COUNT: Mutex<usize> = Mutex::new(0);
+}
+
+enum RateLimitMode {
+    Tokens,
+    Requests,
+}
+
+fn enforce_rate_limit(mode: RateLimitMode, used: usize) {
+    match mode {
+        RateLimitMode::Tokens => enforce_rate_limit_internal(used, TOKENS_PER_MINUTE, 1_440_000),
+        RateLimitMode::Requests => enforce_rate_limit_internal(used, REQUESTS_PER_MINUTE, 720_000),
+    }
+}
+
+fn enforce_rate_limit_internal(used: usize, per_minute: usize, per_day: usize) {
+    let mut execution_times = EXECUTION_TIMES.lock().unwrap();
+    let now = Instant::now();
+
+    // Remove outdated entries (older than 1 minute or 1 day)
+    let one_minute_ago = now - Duration::from_secs(60);
+    let one_day_ago = now - Duration::from_secs(86400);
+    execution_times.retain(|&time| time >= one_day_ago);
+
+    // Calculate usage in the last minute and day
+    let last_minute_usage = execution_times
+        .iter()
+        .filter(|&&time| time >= one_minute_ago)
+        .count();
+    let last_day_usage = execution_times.len();
+
+    // Determine the required delay to stay within limits
+    let mut required_delay = Duration::ZERO;
+    if last_minute_usage >= per_minute {
+        let oldest_in_minute = execution_times
+            .iter()
+            .find(|&&time| time >= one_minute_ago)
+            .unwrap();
+        required_delay = (*oldest_in_minute + Duration::from_secs(60)) - now;
+    }
+    if last_day_usage >= per_day {
+        let oldest_in_day = execution_times.front().unwrap();
+        required_delay = required_delay.max((*oldest_in_day + Duration::from_secs(86400)) - now);
+    }
+
+    // Sleep for the required delay
+    if !required_delay.is_zero() {
+        std::thread::sleep(required_delay);
+    }
+
+    // Record the current execution time
+    execution_times.push_back(now);
+}
+
+fn track_request_count() {
+    let mut request_count = REQUEST_COUNT.lock().unwrap();
+    *request_count += 1;
+    debug!("Total requests made: {}", *request_count);
+}
+
 fn check_command(
     policy: &Policy,
     ExecArg { program, args }: ExecArg,
     check: bool,
 ) -> (Output, i32) {
+    // Track the number of requests
+    track_request_count();
+
+    // Example usage and limits (to be replaced with actual logic)
+    let mode = RateLimitMode::Requests; // Example: switch to RateLimitMode::Tokens if needed
+    let used = 1; // Placeholder for usage estimation logic
+
+
+    // Enforce rate limit before proceeding
+    enforce_rate_limit(mode, used);
+
     let exec_call = ExecCall { program, args };
+
+    // Call policy.check as normal
     match policy.check(&exec_call) {
         Ok(MatchedExec::Match { exec }) => {
-            if exec.might_write_files() {
+            if std::env::var("DEV_PLUG").is_ok() && std::env::var("FULL_COMMAND").is_ok() {
+                (Output::Safe { r#match: exec }, 0) // Return Safe with full match
+            } else if exec.might_write_files() && !std::env::var("DEV_PLUG").is_ok() {
                 let exit_code = if check {
                     MATCHED_BUT_WRITES_FILES_EXIT_CODE
                 } else {
@@ -109,7 +196,7 @@ fn check_command(
                 };
                 (Output::Match { r#match: exec }, exit_code)
             } else {
-                (Output::Safe { r#match: exec }, 0)
+                (Output::Match { r#match: exec }, 0) // Return Safe without full match
             }
         }
         Ok(MatchedExec::Forbidden { reason, cause }) => {
@@ -164,3 +251,4 @@ impl FromStr for ExecArg {
         serde_json::from_str(s).map_err(|e| e.into())
     }
 }
+

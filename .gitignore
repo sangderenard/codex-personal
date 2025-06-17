@@ -81,3 +81,16 @@ CHANGELOG.ignore.md
 # nix related
 .direnv
 .envrc
+-e 
+# Custom ignores
+.husky
+Ubuntu
+codex-cli/bin/*
+codex-cli/dist
+codex-cli/node_modules
+debug_sandbox.rs
+debug_sandbox_backup_not_working_anyways
+node_modules
+package-lock.json
+".vs/" 
+.vs/ 
