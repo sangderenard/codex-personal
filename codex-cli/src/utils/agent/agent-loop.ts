@@ -805,17 +805,12 @@ export class AgentLoop {
               .filter(Boolean)
               .join("\n");
 
-            const responseCall =
-              !this.config.provider ||
-              this.config.provider?.toLowerCase() === "openai"
-                ? (params: ResponseCreateParams) =>
-                    this.oai.responses.create(params)
-                : (params: ResponseCreateParams) =>
-                    responsesCreateViaChatCompletions(
-                      this.oai,
-                      params as ResponseCreateParams & { stream: true },
-                      rateLimiter,
-                    );
+            const responseCall = (params: ResponseCreateParams) =>
+              responsesCreateViaChatCompletions(
+                this.oai,
+                params as ResponseCreateParams & { stream: true },
+                rateLimiter,
+              );
             log(
               `instructions (length ${mergedInstructions.length}): ${mergedInstructions}`,
             );
@@ -1194,17 +1189,12 @@ export class AgentLoop {
                 .filter(Boolean)
                 .join("\n");
 
-              const responseCall =
-                !this.config.provider ||
-                this.config.provider?.toLowerCase() === "openai"
-                  ? (params: ResponseCreateParams) =>
-                      this.oai.responses.create(params)
-                  : (params: ResponseCreateParams) =>
-                      responsesCreateViaChatCompletions(
-                        this.oai,
-                        params as ResponseCreateParams & { stream: true },
-                        rateLimiter,
-                      );
+              const responseCall = (params: ResponseCreateParams) =>
+                responsesCreateViaChatCompletions(
+                  this.oai,
+                  params as ResponseCreateParams & { stream: true },
+                  rateLimiter,
+                );
 
               log(
                 "agentLoop.run(): responseCall(1): turnInput: " +

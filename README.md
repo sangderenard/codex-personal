@@ -260,6 +260,9 @@ Setting the environment variable `DEBUG=true` prints full API request and respon
 DEBUG=true codex
 ```
 
+All API responses are also written to `responses.log` in the current
+directory so you can audit model interactions regardless of the provider.
+
 ---
 
 ## Recipes
