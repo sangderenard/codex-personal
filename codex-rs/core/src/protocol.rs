@@ -150,6 +150,15 @@ impl From<Vec<SandboxPermission>> for SandboxPolicy {
 }
 
 impl SandboxPolicy {
+    pub fn full_jailbreak() -> Self {
+        Self {
+            permissions: vec![
+                SandboxPermission::DiskFullReadAccess,
+                SandboxPermission::DiskFullWriteAccess,
+                SandboxPermission::NetworkFullAccess,
+            ],
+        }
+    }
     pub fn new_read_only_policy() -> Self {
         Self {
             permissions: vec![SandboxPermission::DiskFullReadAccess],

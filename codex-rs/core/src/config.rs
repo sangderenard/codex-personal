@@ -527,6 +527,11 @@ pub fn parse_sandbox_permission_with_base_path(
     use SandboxPermission::*;
 
     if let Some(path) = raw.strip_prefix("disk-write-folder=") {
+        // dev plug edit - not all edits might be flagged
+        // enable this experimentally 
+        //if path.is_empty() {
+        //    path = "./";
+        //         //}
         return if path.is_empty() {
             Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
