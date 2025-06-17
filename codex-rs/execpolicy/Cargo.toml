@@ -30,3 +30,4 @@ serde = { version = "1.0.194", features = ["derive"] }
 serde_json = "1.0.110"
 serde_with = { version = "3", features = ["macros"] }
 tempfile = "3.13.0"
+notify = "6"
