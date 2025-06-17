@@ -1,6 +1,7 @@
 use clap::Parser;
 use codex_cli::LandlockCommand;
 use codex_cli::SeatbeltCommand;
+use codex_cli::BlackBoxCommand;
 use codex_cli::login::run_login_with_chatgpt;
 use codex_cli::proto;
 use codex_common::CliConfigOverrides;
@@ -64,6 +65,9 @@ enum DebugCommand {
 
     /// Run a command under Landlock+seccomp (Linux only).
     Landlock(LandlockCommand),
+
+    /// Approve a command without executing it.
+    BlackBox(BlackBoxCommand),
 }
 
 #[derive(Debug, Parser)]
@@ -119,6 +123,10 @@ async fn cli_main(codex_linux_sandbox_exe: Option<PathBuf>) -> anyhow::Result<()
                     codex_linux_sandbox_exe,
                 )
                 .await?;
+            }
+            DebugCommand::BlackBox(mut black_cli) => {
+                prepend_config_flags(&mut black_cli.config_overrides, cli.config_overrides);
+                codex_cli::debug_sandbox::run_command_black_box(black_cli).await?;
             }
         },
     }
