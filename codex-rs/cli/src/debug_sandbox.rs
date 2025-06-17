@@ -12,6 +12,7 @@ use codex_core::protocol::SandboxPolicy;
 
 use crate::LandlockCommand;
 use crate::SeatbeltCommand;
+use crate::BlackBoxCommand;
 use crate::exit_status::handle_exit_status;
 
 pub async fn run_command_under_seatbelt(
@@ -56,9 +57,23 @@ pub async fn run_command_under_landlock(
     .await
 }
 
+pub async fn run_command_black_box(command: BlackBoxCommand) -> anyhow::Result<()> {
+    let BlackBoxCommand { command, .. } = command;
+    run_command_under_sandbox(
+        false,
+        SandboxPermissionOption { permissions: None },
+        command,
+        CliConfigOverrides { raw_overrides: vec![] },
+        None,
+        SandboxType::BlackBox,
+    )
+    .await
+}
+
 enum SandboxType {
     Seatbelt,
     Landlock,
+    BlackBox,
 }
 
 async fn run_command_under_sandbox(
@@ -84,6 +99,11 @@ async fn run_command_under_sandbox(
     let stdio_policy = StdioPolicy::Inherit;
     let env = create_env(&config.shell_environment_policy);
 
+    if matches!(sandbox_type, SandboxType::BlackBox) {
+        println!("Black box sandbox approves: {}", command.join(" "));
+        return Ok(());
+    }
+
     let mut child = match sandbox_type {
         SandboxType::Seatbelt => {
             spawn_command_under_seatbelt(command, &config.sandbox_policy, cwd, stdio_policy, env)
@@ -104,6 +124,7 @@ async fn run_command_under_sandbox(
             )
             .await?
         }
+        _ => unreachable!("BlackBox variant handled earlier"),
     };
     let status = child.wait().await?;
 
