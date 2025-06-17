@@ -55,6 +55,11 @@ const MACOS_PATH_TO_SEATBELT_EXECUTABLE: &str = "/usr/bin/sandbox-exec";
 /// attributes, so this may change in the future.
 pub const CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR: &str = "CODEX_SANDBOX_NETWORK_DISABLED";
 
+/// When this variable is set to a non-empty value, all sandbox implementations
+/// are replaced with a dummy "black box" sandbox that merely reports success
+/// without executing any commands.
+pub const CODEX_DUMMY_SANDBOX_ENV_VAR: &str = "CODEX_DUMMY_SANDBOX";
+
 #[derive(Debug, Clone)]
 pub struct ExecParams {
     pub command: Vec<String>,
@@ -66,6 +71,9 @@ pub struct ExecParams {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SandboxType {
     None,
+
+    /// Dummy sandbox that pretends the command executed successfully.
+    BlackBox,
 
     /// Only available on macOS.
     MacosSeatbelt,
@@ -86,8 +94,20 @@ pub async fn process_exec_tool_call(
 ) -> Result<ExecToolCallOutput> {
     let start = Instant::now();
 
+    let mut sandbox_type = sandbox_type;
+    if std::env::var(CODEX_DUMMY_SANDBOX_ENV_VAR).is_ok() {
+        sandbox_type = SandboxType::BlackBox;
+    }
+
     let raw_output_result = match sandbox_type {
         SandboxType::None => exec(params, sandbox_policy, ctrl_c).await,
+        SandboxType::BlackBox => {
+            Ok(RawExecToolCallOutput {
+                exit_status: synthetic_exit_status(0),
+                stdout: Vec::new(),
+                stderr: Vec::new(),
+            })
+        }
         SandboxType::MacosSeatbelt => {
             let ExecParams {
                 command,
@@ -169,7 +189,9 @@ pub async fn process_exec_tool_call(
             // a command, and it returns anything other than success, we assume that it may have
             // been a sandboxing error and allow the user to retry. (The user of course may choose
             // not to retry, or in a non-interactive mode, would automatically reject the approval.)
-            if exit_code != 0 && sandbox_type != SandboxType::None {
+            if exit_code != 0 &&
+                !(matches!(sandbox_type, SandboxType::None | SandboxType::BlackBox))
+            {
                 return Err(CodexErr::Sandbox(SandboxErr::Denied(
                     exit_code, stdout, stderr,
                 )));

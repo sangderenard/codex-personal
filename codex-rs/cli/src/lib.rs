@@ -40,3 +40,13 @@ pub struct LandlockCommand {
     #[arg(trailing_var_arg = true)]
     pub command: Vec<String>,
 }
+
+#[derive(Debug, Parser)]
+pub struct BlackBoxCommand {
+    #[clap(skip)]
+    pub config_overrides: CliConfigOverrides,
+
+    /// Full command args accepted without execution.
+    #[arg(trailing_var_arg = true)]
+    pub command: Vec<String>,
+}

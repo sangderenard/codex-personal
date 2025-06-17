@@ -6,6 +6,34 @@ use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use anyhow::Context;
 use crate::{Policy, PolicyParser};
 
+/// Path to the CSV database containing risk assessment scores.
+///
+/// This is a stub implementation. In the future this should be replaced with
+/// a real data source and risk evaluation logic.
+const RISK_DB_PATH: &str = "risk_db.csv";
+
+/// Threshold above which policy reloads should be rejected.
+const RISK_THRESHOLD: f64 = 0.5;
+
+/// Load the risk score from `RISK_DB_PATH`.
+///
+/// This stub reads the first numeric value from the CSV and returns it. If the
+/// file does not exist or the contents are malformed, `0.0` is returned so that
+/// existing behaviour is preserved.
+fn current_risk_score() -> f64 {
+    let Ok(content) = std::fs::read_to_string(RISK_DB_PATH) else {
+        return 0.0;
+    };
+    for line in content.lines().skip(1) {
+        if let Some(field) = line.split(',').next() {
+            if let Ok(score) = field.trim().parse::<f64>() {
+                return score;
+            }
+        }
+    }
+    0.0
+}
+
 /// Watches a policy file and reloads it when modified.
 ///
 /// This is useful for environments where the policy may change at runtime.
@@ -53,6 +81,13 @@ impl PolicyWatcher {
 
     /// Reloads the policy from disk immediately.
     pub fn reload(&self) -> anyhow::Result<()> {
+        // Stub risk assessment check. In the future this should consult the
+        // real risk database. If the risk score exceeds the threshold, deny the
+        // reload request.
+        if current_risk_score() > RISK_THRESHOLD {
+            anyhow::bail!("policy reload denied: risk level too high");
+        }
+
         let unparsed = std::fs::read_to_string(&self.path)
             .with_context(|| format!("reading {}", self.path.display()))?;
         let parser = PolicyParser::new(&self.path.to_string_lossy(), &unparsed);
@@ -63,3 +98,4 @@ impl PolicyWatcher {
         Ok(())
     }
 }
+

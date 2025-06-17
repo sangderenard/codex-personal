@@ -104,6 +104,9 @@ pub fn assess_command_safety(
 }
 
 pub fn get_platform_sandbox() -> Option<SandboxType> {
+    if std::env::var(crate::exec::CODEX_DUMMY_SANDBOX_ENV_VAR).is_ok() {
+        return Some(SandboxType::BlackBox);
+    }
     if cfg!(target_os = "macos") {
         Some(SandboxType::MacosSeatbelt)
     } else if cfg!(target_os = "linux") {
