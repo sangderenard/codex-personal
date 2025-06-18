@@ -11,10 +11,12 @@ use crate::threat_state::{ThreatMatrix, ThreatAssessment};
 ///
 /// This is a stub implementation. In the future this should be replaced with
 /// a real data source and risk evaluation logic.
-const RISK_DB_PATH: &str = "risk_db.csv";
+/// Location of the threat vector CSV relative to the crate.
+const RISK_DB_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/risk_csv.csv");
 
 /// Threshold above which policy reloads should be rejected.
-const RISK_THRESHOLD: f64 = 0.5;
+/// Threshold above which policy reloads should be rejected.
+const RISK_THRESHOLD: f64 = 5.0;
 
 /// Load the risk score from `RISK_DB_PATH`.
 ///
@@ -25,14 +27,29 @@ fn current_risk_score() -> f64 {
     let Ok(content) = std::fs::read_to_string(RISK_DB_PATH) else {
         return 0.0;
     };
+
+    let mut total = 0.0;
+    let mut count = 0.0;
     for line in content.lines().skip(1) {
-        if let Some(field) = line.split(',').next() {
-            if let Ok(score) = field.trim().parse::<f64>() {
-                return score;
-            }
+        let fields: Vec<&str> = line.split(',').collect();
+        if fields.len() < 8 {
+            continue;
+        }
+        let scores: Option<Vec<f64>> = fields[3..8]
+            .iter()
+            .map(|s| s.trim().parse::<f64>().ok())
+            .collect();
+        if let Some(scores) = scores {
+            let avg = scores.iter().sum::<f64>() / scores.len() as f64;
+            total += avg;
+            count += 1.0;
         }
     }
-    0.0
+    if count > 0.0 {
+        total / count
+    } else {
+        0.0
+    }
 }
 
 /// Watches a policy file and reloads it when modified.
@@ -131,10 +148,21 @@ impl PolicyWatcher {
             .lines()
             .skip(1) // Skip header
             .filter_map(|line| {
-                let mut fields = line.split(',');
-                let tool_name = fields.next()?.trim().to_string();
-                let risk_score = fields.next()?.trim().parse::<f64>().ok()?;
-                Some((tool_name, risk_score))
+                let fields: Vec<&str> = line.split(',').collect();
+                if fields.len() < 8 {
+                    return None;
+                }
+                let tool_name = fields[1].trim().to_string();
+                let scores: Option<Vec<f64>> = fields[3..8]
+                    .iter()
+                    .map(|s| s.trim().parse::<f64>().ok())
+                    .collect();
+                if let Some(scores) = scores {
+                    let avg = scores.iter().sum::<f64>() / scores.len() as f64;
+                    Some((tool_name, avg))
+                } else {
+                    None
+                }
             })
             .collect();
 
