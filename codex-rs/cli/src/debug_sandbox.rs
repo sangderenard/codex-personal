@@ -149,6 +149,7 @@ async fn run_command_under_sandbox(
             )
             .await?
         }
+        SandboxType::BlackBox => unreachable!("handled above"),
     };
     let status = child.wait().await?;
 
