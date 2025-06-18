@@ -9,36 +9,46 @@ use crate::threat_state::{
     ThreatMatrix,
     ThreatAssessment,
     ThreatDeliverable,
+    RiskVector,
+    ThreatLevel,
+    DEFAULT_CATEGORY_WEIGHTS,
     load_risk_tree,
-    generate_deliverables,
+    generate_deliverables_with_weights,
+    load_risk_matrix,
+    risk_vector_score,
+    DEFAULT_RISK_SCORE,
+
 };
 
 /// Path to the CSV database containing risk assessment scores.
 ///
-/// This is a stub implementation. In the future this should be replaced with
-/// a real data source and risk evaluation logic.
-const RISK_DB_PATH: &str = "risk_db.csv";
+/// The risk matrix is derived from this CSV at runtime.
+const RISK_CSV_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/risk_csv.csv");
 
 /// Threshold above which policy reloads should be rejected.
 const RISK_THRESHOLD: f64 = 0.5;
 
-/// Load the risk score from `RISK_DB_PATH`.
-///
-/// This stub reads the first numeric value from the CSV and returns it. If the
-/// file does not exist or the contents are malformed, `0.0` is returned so that
-/// existing behaviour is preserved.
+
+/// Load the overall risk score from `RISK_CSV_PATH` by averaging all metrics.
+/// If the CSV cannot be read, [`DEFAULT_RISK_SCORE`] is returned so that existing
+/// behaviour is preserved.
 fn current_risk_score() -> f64 {
-    let Ok(content) = std::fs::read_to_string(RISK_DB_PATH) else {
-        return 0.0;
+    let Ok(tree) = load_risk_tree(std::path::Path::new(RISK_CSV_PATH)) else {
+        return DEFAULT_RISK_SCORE;
     };
-    for line in content.lines().skip(1) {
-        if let Some(field) = line.split(',').next() {
-            if let Ok(score) = field.trim().parse::<f64>() {
-                return score;
+    let mut sum = 0.0;
+    let mut count = 0;
+    for env in tree.values() {
+        for cmd in env.values() {
+            for vec in cmd.values() {
+                for v in vec {
+                    sum += *v;
+                    count += 1;
+                }
             }
         }
     }
-    0.0
+    if count == 0 { DEFAULT_RISK_SCORE } else { sum / count as f64 }
 }
 
 /// Watches a policy file and reloads it when modified.
@@ -107,11 +117,11 @@ impl PolicyWatcher {
 
     /// Registers a new tool and its risk score in the risk database.
     ///
-    /// This appends the tool and score to the `RISK_DB_PATH` CSV file.
+    /// This appends the tool and score to the `RISK_CSV_PATH` CSV file.
     pub fn register_tool(&self, tool_name: &str, risk_score: f64) -> anyhow::Result<()> {
-        let mut content = std::fs::read_to_string(RISK_DB_PATH).unwrap_or_default();
+        let mut content = std::fs::read_to_string(RISK_CSV_PATH).unwrap_or_default();
         content.push_str(&format!("\n{},{}", tool_name, risk_score));
-        std::fs::write(RISK_DB_PATH, content).context("writing to risk database")?;
+        std::fs::write(RISK_CSV_PATH, content).context("writing to risk database")?;
         Ok(())
     }
 
@@ -127,28 +137,23 @@ impl PolicyWatcher {
     }
 
     /// Decomposes a list of command strings into their base flags and compiles a batch of CSV values.
-    pub fn compile_csv_batch(&self, commands: Vec<String>) -> anyhow::Result<Vec<(String, f64)>> {
+    pub fn compile_csv_batch(&self, commands: Vec<String>, env: Option<&str>) -> anyhow::Result<Vec<(String, RiskVector)>> {
+        let tree = load_risk_tree(std::path::Path::new(RISK_CSV_PATH))?;
         let mut results = Vec::new();
-        let Ok(content) = std::fs::read_to_string(RISK_DB_PATH) else {
-            return Ok(results);
-        };
-
-        let csv_data: Vec<(String, f64)> = content
-            .lines()
-            .skip(1) // Skip header
-            .filter_map(|line| {
-                let mut fields = line.split(',');
-                let tool_name = fields.next()?.trim().to_string();
-                let risk_score = fields.next()?.trim().parse::<f64>().ok()?;
-                Some((tool_name, risk_score))
-            })
-            .collect();
+        let environment = env.map(|e| e.to_lowercase()).unwrap_or_else(|| std::env::consts::OS.to_lowercase());
 
         for command in commands {
-            let flags: Vec<String> = command.split_whitespace().map(|s| s.to_string()).collect();
-            for flag in flags {
-                if let Some((tool_name, risk_score)) = csv_data.iter().find(|(name, _)| name == &flag) {
-                    results.push((tool_name.clone(), *risk_score));
+            let mut parts = command.split_whitespace();
+            if let Some(cmd) = parts.next() {
+                let flags: Vec<String> = parts.map(|s| s.to_string()).collect();
+                if let Some(env_map) = tree.get(&environment) {
+                    if let Some(cmd_map) = env_map.get(cmd) {
+                        for flag in &flags {
+                            if let Some(vec) = cmd_map.get(flag) {
+                                results.push((flag.clone(), vec.clone()));
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -156,19 +161,28 @@ impl PolicyWatcher {
         Ok(results)
     }
 
-    /// Stub for modulating results based on history and combined patterns.
-    pub fn modulate_results(&self, batch: Vec<(String, f64)>) -> Vec<(String, f64)> {
-        // Placeholder for future implementation
+    /// Combine category scores from threat state into a single risk score.
+    pub fn modulate_results(&self, batch: Vec<(String, RiskVector)>) -> Vec<(String, f64)> {
         batch
+            .into_iter()
+            .map(|(flag, vec)| {
+                let score = risk_vector_score(&vec);
+                (flag, score)
+            })
+            .collect()
     }
 
     /// Processes the dimensionality of a ThreatMatrix based on the CSV data and commands.
     pub fn process_threat_matrix(&self, commands: Vec<String>) -> ThreatMatrix {
-        let mut matrix = ThreatMatrix::new(100, 0.1); // Example parameters
+        let mut matrix = match load_risk_matrix(std::path::Path::new(RISK_CSV_PATH)) {
+            Ok(m) => m,
+            Err(_) => ThreatMatrix::new(0, 0.0),
+        };
 
-        if let Ok(batch) = self.compile_csv_batch(commands) {
-            for (tool_name, risk_score) in batch {
-                let assessment = ThreatAssessment::new(risk_score, risk_score * 1.2, vec![tool_name]);
+        if let Ok(batch) = self.compile_csv_batch(commands, None) {
+            let scored = self.modulate_results(batch);
+            for (tool_name, risk_score) in scored {
+                let assessment = ThreatAssessment::new(risk_score, risk_score, vec![tool_name]);
                 matrix.add_assessment(assessment);
             }
         }
@@ -180,7 +194,13 @@ impl PolicyWatcher {
     /// Generates threat deliverables by overlaying the current CSV with historical data.
     pub fn threat_deliverables(&self, csv_path: &PathBuf) -> anyhow::Result<ThreatDeliverable> {
         let tree = load_risk_tree(csv_path)?;
-        Ok(generate_deliverables(tree))
+        Ok(generate_deliverables_with_weights(tree, &DEFAULT_CATEGORY_WEIGHTS))
+    }
+
+    /// Evaluate a [`ThreatMatrix`] and return the overall [`ThreatLevel`].
+    pub fn evaluate_matrix(&self, matrix: &ThreatMatrix) -> ThreatLevel {
+        matrix.evaluate()
+
     }
 }
 
