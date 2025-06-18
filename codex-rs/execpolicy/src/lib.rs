@@ -41,11 +41,22 @@ pub use valid_exec::MatchedFlag;
 pub use valid_exec::MatchedOpt;
 pub use valid_exec::ValidExec;
 
-const DEFAULT_POLICY: &str = include_str!("default.policy");
+use once_cell::sync::OnceCell;
+use std::path::PathBuf;
+
+static DEFAULT_WATCHER: OnceCell<PolicyWatcher> = OnceCell::new();
 
 pub fn get_default_policy() -> starlark::Result<Policy> {
-    let parser = PolicyParser::new("#default", DEFAULT_POLICY);
-    parser.parse()
+    let watcher = DEFAULT_WATCHER.get_or_try_init(|| {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("risk_csv.csv");
+        PolicyWatcher::new(path).map_err(|e| {
+            starlark::Error::new_kind(starlark::ErrorKind::Other(e.into()))
+        })
+    })?;
+    let _ = watcher.reload();
+    Ok(watcher.policy())
 }
 
 use serde::Deserialize;

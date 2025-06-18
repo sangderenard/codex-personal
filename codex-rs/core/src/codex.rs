@@ -1218,9 +1218,28 @@ async fn handle_function_call(
     }
 }
 
+fn strip_outer_quotes(mut s: String) -> String {
+    if s.len() >= 2 {
+        let bytes = s.as_bytes();
+        let first = bytes[0] as char;
+        let last = bytes[bytes.len() - 1] as char;
+        if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
+            if !s[1..s.len() - 1].contains(first) {
+                s.remove(0);
+                s.pop();
+            }
+        }
+    }
+    s
+}
+
+fn sanitize_command(cmd: Vec<String>) -> Vec<String> {
+    cmd.into_iter().map(strip_outer_quotes).collect()
+}
+
 fn to_exec_params(params: ShellToolCallParams, sess: &Session) -> ExecParams {
     ExecParams {
-        command: params.command,
+        command: sanitize_command(params.command),
         cwd: sess.resolve_path(params.workdir.clone()),
         timeout_ms: params.timeout_ms,
         env: create_env(&sess.shell_environment_policy),
