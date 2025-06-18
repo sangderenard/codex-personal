@@ -5,7 +5,13 @@ use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 
 use anyhow::Context;
 use crate::{Policy, PolicyParser};
-use crate::threat_state::{ThreatMatrix, ThreatAssessment};
+use crate::threat_state::{
+    ThreatMatrix,
+    ThreatAssessment,
+    ThreatDeliverable,
+    load_risk_tree,
+    generate_deliverables,
+};
 
 /// Path to the CSV database containing risk assessment scores.
 ///
@@ -158,7 +164,7 @@ impl PolicyWatcher {
 
     /// Processes the dimensionality of a ThreatMatrix based on the CSV data and commands.
     pub fn process_threat_matrix(&self, commands: Vec<String>) -> ThreatMatrix {
-        let mut matrix = ThreatMatrix::new(100, 0.1); // Example parameters: max_size=100, decay_factor=0.1
+        let mut matrix = ThreatMatrix::new(100, 0.1); // Example parameters
 
         if let Ok(batch) = self.compile_csv_batch(commands) {
             for (tool_name, risk_score) in batch {
@@ -169,6 +175,12 @@ impl PolicyWatcher {
 
         matrix.apply_decay();
         matrix
+    }
+
+    /// Generates threat deliverables by overlaying the current CSV with historical data.
+    pub fn threat_deliverables(&self, csv_path: &PathBuf) -> anyhow::Result<ThreatDeliverable> {
+        let tree = load_risk_tree(csv_path)?;
+        Ok(generate_deliverables(tree))
     }
 }
 

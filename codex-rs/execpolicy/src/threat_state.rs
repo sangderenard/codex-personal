@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -197,5 +197,142 @@ impl ThreatAssessment {
             evaluated_danger,
             flags,
         }
+    }
+}
+
+/// Vector of threat metrics per flag.
+pub type RiskVector = Vec<f64>;
+
+/// Tree structure mapping environment -> command -> flag -> risk vector.
+pub type RiskTree = BTreeMap<String, BTreeMap<String, BTreeMap<String, RiskVector>>>;
+
+#[derive(Clone, Debug, Default)]
+/// Historical tree storage with a moving window.
+pub struct RiskHistory {
+    window: VecDeque<RiskTree>,
+    decay_factor: f64,
+    max_size: usize,
+}
+
+lazy_static! {
+    /// Global historical tree for threat evaluations.
+    static ref HISTORICAL_TREE: Mutex<RiskHistory> = Mutex::new(RiskHistory::new(100, 0.05));
+}
+
+impl RiskHistory {
+    pub fn new(max_size: usize, decay_factor: f64) -> Self {
+        Self { window: VecDeque::new(), decay_factor, max_size }
+    }
+
+    /// Add a new risk tree to the historical window.
+    pub fn add_tree(&mut self, tree: RiskTree) {
+        if self.window.len() >= self.max_size {
+            self.prune_uninteresting();
+        }
+        self.window.push_back(tree);
+    }
+
+    /// Simple decay-based pruning of the oldest element.
+    fn prune_uninteresting(&mut self) {
+        self.window.pop_front();
+    }
+
+    /// Blend historical trees with the current tree using averaging.
+    pub fn blend_with_history(&self, current: &RiskTree) -> RiskTree {
+        let mut sums: RiskTree = BTreeMap::new();
+        let mut counts: BTreeMap<(String, String, String), usize> = BTreeMap::new();
+
+        let iter = self.window.iter().chain(std::iter::once(current));
+
+        for tree in iter {
+            for (env, cmd_map) in tree {
+                for (cmd, flag_map) in cmd_map {
+                    for (flag, vec) in flag_map {
+                        let entry = sums
+                            .entry(env.clone())
+                            .or_default()
+                            .entry(cmd.clone())
+                            .or_default()
+                            .entry(flag.clone())
+                            .or_insert_with(|| vec![0.0; vec.len()]);
+                        for (i, v) in vec.iter().enumerate() {
+                            if i < entry.len() {
+                                entry[i] += v;
+                            }
+                        }
+                        *counts.entry((env.clone(), cmd.clone(), flag.clone())).or_insert(0) += 1;
+                    }
+                }
+            }
+        }
+
+        // Compute averages
+        for ((env, cmd, flag), count) in counts {
+            if let Some(env_map) = sums.get_mut(&env) {
+                if let Some(cmd_map) = env_map.get_mut(&cmd) {
+                    if let Some(vec) = cmd_map.get_mut(&flag) {
+                        for v in vec.iter_mut() {
+                            *v /= count as f64;
+                        }
+                    }
+                }
+            }
+        }
+        sums
+    }
+
+    /// Access historical window clone.
+    pub fn history(&self) -> Vec<RiskTree> {
+        self.window.iter().cloned().collect()
+    }
+}
+
+/// Load a risk tree from a CSV file with the format produced by `risk_csv.csv`.
+pub fn load_risk_tree(path: &Path) -> anyhow::Result<RiskTree> {
+    let content = std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+    let mut tree: RiskTree = BTreeMap::new();
+
+    for line in content.lines().skip(1) {
+        let fields: Vec<&str> = line.split(',').collect();
+        if fields.len() < 4 {
+            continue;
+        }
+        let env = fields[0].trim().to_string();
+        let cmd = fields[1].trim().to_string();
+        let flag = fields[2].trim().to_string();
+        let mut vec = Vec::new();
+        for f in &fields[3..] {
+            if let Ok(num) = f.trim().parse::<f64>() {
+                vec.push(num);
+            }
+        }
+        tree
+            .entry(env)
+            .or_default()
+            .entry(cmd)
+            .or_default()
+            .insert(flag, vec);
+    }
+
+    Ok(tree)
+}
+
+#[derive(Clone, Debug)]
+pub struct ThreatDeliverable {
+    pub historical: Vec<RiskTree>,
+    pub projected: RiskTree,
+    pub final_tree: RiskTree,
+}
+
+/// Generate deliverables based on the current tree and historical data.
+pub fn generate_deliverables(current: RiskTree) -> ThreatDeliverable {
+    let mut history = HISTORICAL_TREE.lock().expect("Failed to lock historical tree");
+    history.add_tree(current.clone());
+    let projected = history.blend_with_history(&current);
+    let final_tree = projected.clone();
+    ThreatDeliverable {
+        historical: history.history(),
+        projected,
+        final_tree,
     }
 }
