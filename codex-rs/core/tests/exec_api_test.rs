@@ -2,13 +2,13 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Notify;
-use super::protocol::SandboxPolicy;
-use super::exec_env::{spawn_command_under_api, StdioPolicy};
+use codex_core::protocol::SandboxPolicy;
+use codex_core::exec::{spawn_command_under_api, StdioPolicy};
 
 #[tokio::test]
 async fn test_spawn_command_under_api() {
     let command = vec!["echo".to_string(), "Hello, World!".to_string()];
-    let sandbox_policy = SandboxPolicy::default(); // Assuming a default implementation exists
+    let sandbox_policy = SandboxPolicy::new_full_auto_policy();
     let cwd = PathBuf::from(".");
     let stdio_policy = StdioPolicy::RedirectForShellTool;
     let env = HashMap::new();
