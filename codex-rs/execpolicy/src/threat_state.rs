@@ -440,3 +440,4 @@ pub fn load_risk_matrix(path: &Path) -> anyhow::Result<ThreatMatrix> {
 
     Ok(matrix)
 }
+

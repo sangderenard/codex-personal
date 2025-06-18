@@ -17,6 +17,7 @@ use crate::threat_state::{
     load_risk_matrix,
     risk_vector_score,
     DEFAULT_RISK_SCORE,
+
 };
 
 /// Path to the CSV database containing risk assessment scores.
@@ -199,6 +200,7 @@ impl PolicyWatcher {
     /// Evaluate a [`ThreatMatrix`] and return the overall [`ThreatLevel`].
     pub fn evaluate_matrix(&self, matrix: &ThreatMatrix) -> ThreatLevel {
         matrix.evaluate()
+
     }
 }
 
