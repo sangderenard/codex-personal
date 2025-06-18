@@ -13,6 +13,7 @@ use crate::model_provider_info::built_in_model_providers;
 use crate::protocol::AskForApproval;
 use crate::protocol::SandboxPermission;
 use crate::protocol::SandboxPolicy;
+use codex_execpolicy::threat_state::{ThreatMatrix, ThreatLevel};
 use dirs::home_dir;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -294,6 +295,9 @@ pub struct ConfigToml {
 
     pub model_reasoning_effort: Option<ReasoningEffort>,
     pub model_reasoning_summary: Option<ReasoningSummary>,
+
+    /// Optional threat configuration.
+    pub threat_config: Option<String>,
 }
 
 fn deserialize_sandbox_permissions<'de, D>(
@@ -372,14 +376,16 @@ impl Config {
         let sandbox_policy = match sandbox_policy {
             Some(sandbox_policy) => sandbox_policy,
             None => {
-                // Derive a SandboxPolicy from the permissions in the config.
                 match cfg.sandbox_permissions {
-                    // Note this means the user can explicitly set permissions
-                    // to the empty list in the config file, granting it no
-                    // permissions whatsoever.
                     Some(permissions) => SandboxPolicy::from(permissions),
-                    // Default to read only rather than completely locked down.
-                    None => SandboxPolicy::new_read_only_policy(),
+                    None => {
+                        let threat_matrix = ThreatMatrix::new(1000, 0.05);
+                        if threat_matrix.evaluate() == ThreatLevel::Low {
+                            SandboxPolicy::new_read_only_policy()
+                        } else {
+                            SandboxPolicy::outer_sandbox_policy(threat_matrix, SandboxPolicy::new_read_only_policy())
+                        }
+                    },
                 }
             }
         };

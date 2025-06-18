@@ -12,8 +12,8 @@ mod execv_checker;
 mod opt;
 mod policy;
 mod policy_parser;
-mod policy_watcher;
-mod threat_state;
+pub mod policy_watcher;
+pub mod threat_state;
 mod program;
 mod sed_command;
 mod valid_exec;
@@ -46,4 +46,14 @@ const DEFAULT_POLICY: &str = include_str!("default.policy");
 pub fn get_default_policy() -> starlark::Result<Policy> {
     let parser = PolicyParser::new("#default", DEFAULT_POLICY);
     parser.parse()
+}
+
+use serde::Deserialize;
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct ExecArg {
+    pub program: String,
+
+    #[serde(default)]
+    pub args: Vec<String>,
 }

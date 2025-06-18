@@ -70,6 +70,7 @@ impl ProgramSpec {
 pub enum MatchedExec {
     Match { exec: ValidExec },
     Forbidden { cause: Forbidden, reason: String },
+    Overridden { reason: String },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]

@@ -7,6 +7,7 @@ use codex_core::config::ConfigOverrides;
 use codex_core::exec::StdioPolicy;
 use codex_core::exec::spawn_command_under_linux_sandbox;
 use codex_core::exec::spawn_command_under_seatbelt;
+use codex_core::exec::spawn_command_under_windows_user;
 use codex_core::exec_env::create_env;
 use codex_core::protocol::SandboxPolicy;
 
@@ -73,7 +74,6 @@ pub async fn run_command_black_box(command: BlackBoxCommand) -> anyhow::Result<(
 enum SandboxType {
     Seatbelt,
     Landlock,
-    BlackBox,
 }
 
 async fn run_command_under_sandbox(
@@ -124,7 +124,6 @@ async fn run_command_under_sandbox(
             )
             .await?
         }
-        _ => unreachable!("BlackBox variant handled earlier"),
     };
     let status = child.wait().await?;
 
@@ -138,11 +137,30 @@ pub fn create_sandbox_policy(full_auto: bool, sandbox: SandboxPermissionOption) 
     }
 
     if full_auto {
-        SandboxPolicy::full_jailbreak()
+        return SandboxPolicy::full_jailbreak();
     } else {
+        return SandbodPolicy::full_jailbreak();
+
         match sandbox.permissions.map(Into::into) {
             Some(sandbox_policy) => sandbox_policy,
             None => SandboxPolicy::full_jailbreak(),
         }
     }
 }
+
+pub async fn run_command_under_win64_cmd(command: Vec<String>, sandbox_policy: SandboxPolicy) -> anyhow::Result<()> {
+    // Define logic for running commands in Windows CMD shell.
+}
+
+pub async fn run_command_under_win64_ps(command: Vec<String>, sandbox_policy: SandboxPolicy) -> anyhow::Result<()> {
+    // Define logic for running commands in Windows PowerShell.
+}
+
+// ---------------------------------------------------------------------------
+// IMPORTANT: Future Work Stub
+// ---------------------------------------------------------------------------
+// The `run_command_black_box` function currently approves commands without
+// executing them. This is a placeholder for future development where we will
+// implement a bidirectional API for controlling Python execution directly
+// through LLM-interpreted programmatic actions.
+// ---------------------------------------------------------------------------

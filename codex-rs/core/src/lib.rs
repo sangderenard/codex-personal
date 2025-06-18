@@ -1,39 +1,49 @@
-//! Root of the `codex-core` library.
-
-// Prevent accidental direct writes to stdout/stderr in library code. All
-// user-visible output must go through the appropriate abstraction (e.g.,
-// the TUI or the tracing stack).
-#![deny(clippy::print_stdout, clippy::print_stderr)]
-
-mod chat_completions;
-mod client;
-mod client_common;
-pub mod codex;
-pub use codex::Codex;
-pub mod codex_wrapper;
-pub mod config;
-pub mod config_profile;
-pub mod config_types;
-mod conversation_history;
-pub mod error;
-pub mod exec;
+//! Core library for Codex.
 pub mod exec_env;
-mod flags;
-mod is_safe_command;
-mod mcp_connection_manager;
-mod mcp_tool_call;
-mod message_history;
-mod model_provider_info;
-pub use model_provider_info::ModelProviderInfo;
-pub use model_provider_info::WireApi;
-mod models;
-pub mod openai_api_key;
-mod openai_tools;
-mod project_doc;
+pub mod config_types;
+pub mod config;
 pub mod protocol;
-mod rollout;
-mod safety;
-mod user_notification;
-pub mod util;
+// Add other module declarations if needed, e.g.:
+// pub mod codex;
+// pub mod another_module;
 
-pub use client_common::model_supports_reasoning_summaries;
+/// High level Codex interface
+pub mod codex;
+
+/// Command execution utilities
+pub mod exec;
+pub mod client;
+pub mod client_common;
+pub mod conversation_history;
+pub mod mcp_connection_manager;
+pub mod mcp_tool_call;
+pub mod models;
+pub mod chat_completions;
+pub mod openai_tools;
+pub mod is_safe_command;
+pub mod project_doc;
+pub mod rollout;
+pub mod safety;
+pub mod user_notification;
+pub mod util;
+/// global feature flags and defaults
+pub mod flags;
+
+/// profiles of per-organization/OpenAI config
+pub mod config_profile;
+
+/// per-model/provider metadata
+pub mod model_provider_info;
+
+/// error types
+pub mod error;
+
+/// message history persistence
+pub mod message_history;
+
+/// OpenAI API key utilities
+pub mod openai_api_key;
+
+pub use model_provider_info::WireApi;
+pub use codex::Codex;
+pub use model_provider_info::ModelProviderInfo;

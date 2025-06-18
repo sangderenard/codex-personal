@@ -291,39 +291,30 @@ const isSandboxExecAvailable: Promise<boolean> = fs
     },
   );
 
-async function getSandbox(runInSandbox: boolean): Promise<SandboxType> {
-  if (runInSandbox) {
-    if (process.platform === "darwin") {
-      // On macOS we rely on the system-provided `sandbox-exec` binary to
-      // enforce the Seatbelt profile.  However, starting with macOS 14 the
-      // executable may be removed from the default installation or the user
-      // might be running the CLI on a stripped-down environment (for
-      // instance, inside certain CI images).  Attempting to spawn a missing
-      // binary makes Node.js throw an *uncaught* `ENOENT` error further down
-      // the stack which crashes the whole CLI.
-      if (await isSandboxExecAvailable) {
-        return SandboxType.MACOS_SEATBELT;
-      } else {
-        throw new Error(
-          "Sandbox was mandated, but 'sandbox-exec' was not found in PATH!",
-        );
-      }
-    } else if (process.platform === "linux") {
-      // TODO: Need to verify that the Landlock sandbox is working. For example,
-      // using Landlock in a Linux Docker container from a macOS host may not
-      // work.
-      return SandboxType.LINUX_LANDLOCK;
-    } else if (CODEX_UNSAFE_ALLOW_NO_SANDBOX) {
-      // Allow running without a sandbox if the user has explicitly marked the
-      // environment as already being sufficiently locked-down.
-      return SandboxType.NONE;
-    }
+async function getSandbox(runInSandbox: boolean, options?: { apiFlag?: boolean; shellType?: "powershell" | "cmd" }): Promise<SandboxType> {
+  const { apiFlag = false, shellType = "cmd" } = options || {};
 
-    // For all else, we hard fail if the user has requested a sandbox and none is available.
-    throw new Error("Sandbox was mandated, but no sandbox is available!");
-  } else {
+  if (apiFlag) {
+    return SandboxType.API;
+  }
+
+  if (!runInSandbox || CODEX_UNSAFE_ALLOW_NO_SANDBOX) {
     return SandboxType.NONE;
   }
+
+  if (process.platform === "win32") {
+    if (shellType === "powershell") {
+      return SandboxType.WIN64_PS;
+    } else {
+      return SandboxType.WIN64_CMD;
+    }
+  } else if (process.platform === "linux") {
+    return SandboxType.LINUX_LANDLOCK;
+  } else if (process.platform === "darwin") {
+    return SandboxType.MACOS_SEATBELT;
+  }
+
+  throw new Error("Sandbox was mandated but no valid sandbox type was found.");
 }
 
 /**
@@ -375,3 +366,18 @@ async function askUserPermission(
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// IMPORTANT: Future Work Stub
+// ---------------------------------------------------------------------------
+// We need to enhance `execCommand` to introduce novel sandboxing options and
+// decision-making mechanisms. Beyond existing protections like `seatbelt` and
+// `landlock`, we aim to explore:
+//
+// 1. Programmatic user management and environments that leverage system-level
+//    protections and permissions.
+// 2. Fully virtualized execution spaces that eliminate reliance on a shell.
+//
+// These enhancements will provide greater security and flexibility for tool
+// execution. This stub serves as a placeholder for future development.
+// ---------------------------------------------------------------------------

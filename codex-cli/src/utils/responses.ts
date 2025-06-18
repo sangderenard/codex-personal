@@ -1,3 +1,4 @@
+import type { ReservoirLimiter } from './rateLimiter';
 import type { OpenAI } from "openai";
 import type {
   ResponseCreateParams,
@@ -5,8 +6,8 @@ import type {
 } from "openai/resources/responses/responses";
 
 import { FrameMessenger } from './FrameMessenger';
+import { createRateLimiter } from './rateLimiter';
 import winston from 'winston';
-import { createRateLimiter, ReservoirLimiter } from './rateLimiter';
 
 // Configure Winston logger
 const logger = winston.createLogger({
@@ -295,11 +296,16 @@ function estimateTokensForMessages(
     if (typeof m.content === "string") {
       contentLength = m.content.length;
     } else if (Array.isArray(m.content)) {
-      contentLength = (m.content as any[]).reduce((acc, c) => {
-        if (typeof c === "string") return acc + c.length;
-        if (typeof c === "object" && c !== null && "text" in c && typeof c.text === "string") return acc + c.text.length;
-        return acc;
-      }, 0);
+      const validatedContent = (m.content as Array<unknown>).map((c) => {
+        if (typeof c === "string") {
+          return ensureNumber(c.length);
+        }
+        if (typeof c === "object" && c !== null && "text" in c && typeof (c as { text: unknown }).text === "string") {
+          return ensureNumber((c as { text: string }).text.length);
+        }
+        return 0; // Default fallback
+      });
+      contentLength = validatedContent.reduce((acc, length) => acc + length, 0);
     }
     return sum + contentLength;
   }, 0);
@@ -314,7 +320,7 @@ function windowMessagesForModel(
   void model; // suppress unused warning
   void maxTokens; // suppress unused warning
   // Estimate tokens and trim from the start if needed
-  let windowed = [...messages];
+  const windowed = [...messages];
   while (estimateTokensForMessages(windowed) > maxTokens && windowed.length > 1) {
     windowed.shift(); // Remove oldest message
   }
@@ -337,11 +343,11 @@ function splitMessagesIntoWindows(
     if (estimateTokensForMessages(current) > maxTokens) {
       // Remove the last message, start a new window
       current.pop();
-      if (current.length > 0) windows.push(current);
+      if (current.length > 0) {windows.push(current);}
       current = [msg];
     }
   }
-  if (current.length > 0) windows.push(current);
+  if (current.length > 0) {windows.push(current);}
   return windows;
 }
 
@@ -372,7 +378,7 @@ async function sendFramedWindows(
       content: frameMessenger?.getFooter(i, windows.length)
     } as OpenAI.Chat.Completions.ChatCompletionSystemMessageParam);
 
-    let windowWithFrame: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [headerMsg, ...windows[i]!];
+    const windowWithFrame: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam> = [headerMsg, ...windows[i]!];
     windowWithFrame.push(footerMsg);
 
     const chunkTokens = estimateTokensForMessages(windowWithFrame, 4);
@@ -397,7 +403,7 @@ async function sendFramedWindows(
     content: frameMessenger?.getInstructions(windows.length, windows.length)
   } as OpenAI.Chat.Completions.ChatCompletionSystemMessageParam;
 
-  const allMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [finalMsg, ...baseMessages];
+  const allMessages: Array<OpenAI.Chat.Completions.ChatCompletionMessageParam> = [finalMsg, ...baseMessages];
   const finalTokens = estimateTokensForMessages(allMessages, 4);
   logger.info('Sending final synthesis message', { tokens: finalTokens });
 
@@ -1000,6 +1006,13 @@ async function* streamResponses(
 
     yield { type: "response.completed", response: finalResponse };
   }
+}
+
+function ensureNumber(value: unknown): number {
+  if (typeof value === "number") {
+    return value;
+  }
+  throw new Error("Value is not a number");
 }
 
 

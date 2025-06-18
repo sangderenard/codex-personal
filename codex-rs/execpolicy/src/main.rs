@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use clap::Subcommand;
-use codex_execpolicy::ExecCall;
+use codex_execpolicy::{ExecCall, ExecArg as LibExecArg};
 use codex_execpolicy::MatchedExec;
 use codex_execpolicy::Policy;
 use codex_execpolicy::PolicyParser;
@@ -22,9 +22,11 @@ use lazy_static::lazy_static;
 const MATCHED_BUT_WRITES_FILES_EXIT_CODE: i32 = 12;
 const MIGHT_BE_SAFE_EXIT_CODE: i32 = 13;
 const FORBIDDEN_EXIT_CODE: i32 = 14;
+const OVERSIGHT_DENIAL_EXIT_CODE: i32 = 15;
 
 const TOKENS_PER_MINUTE: usize = 30_000;
 const REQUESTS_PER_MINUTE: usize = 500;
+const RISK_THRESHOLD: usize = 100; // Example threshold, adjust as needed
 
 #[derive(Parser, Deserialize, Debug)]
 #[command(version, about, long_about = None)]
@@ -55,16 +57,17 @@ pub enum Command {
     CheckJson {
         /// JSON object with "program" (str) and "args" (list[str]) fields.
         #[serde(deserialize_with = "deserialize_from_json")]
-        exec: ExecArg,
+        exec: MainExecArg,
     },
 }
 
-#[derive(Clone, Debug, Deserialize)]
-pub struct ExecArg {
-    pub program: String,
-
-    #[serde(default)]
-    pub args: Vec<String>,
+fn prefilter_command(_exec: &LibExecArg) -> bool {
+    let risk_score = current_risk_score();
+    if risk_score > RISK_THRESHOLD {
+        eprintln!("Command rejected by prefilter: risk score too high");
+        return false;
+    }
+    true
 }
 
 fn main() -> Result<()> {
@@ -84,7 +87,7 @@ fn main() -> Result<()> {
 
     let exec = match args.command {
         Command::Check { command } => match command.split_first() {
-            Some((first, rest)) => ExecArg {
+            Some((first, rest)) => LibExecArg {
                 program: first.to_string(),
                 args: rest.iter().map(|s| s.to_string()).collect(),
             },
@@ -93,8 +96,12 @@ fn main() -> Result<()> {
                 std::process::exit(1);
             }
         },
-        Command::CheckJson { exec } => exec,
+        Command::CheckJson { exec } => exec.0, // Unwrap the newtype
     };
+
+    if !prefilter_command(&exec) {
+        std::process::exit(FORBIDDEN_EXIT_CODE);
+    }
 
     let (output, exit_code) = check_command(&policy, exec, args.require_safe);
     let json = serde_json::to_string(&output)?;
@@ -167,8 +174,8 @@ fn track_request_count() {
 
 fn check_command(
     policy: &Policy,
-    ExecArg { program, args }: ExecArg,
-    check: bool,
+    lib_exec_arg: LibExecArg,
+    require_safe: bool,
 ) -> (Output, i32) {
     // Track the number of requests
     track_request_count();
@@ -181,35 +188,32 @@ fn check_command(
     // Enforce rate limit before proceeding
     enforce_rate_limit(mode, used);
 
-    let exec_call = ExecCall { program, args };
+    let exec_call = ExecCall { program: lib_exec_arg.program, args: lib_exec_arg.args };
 
     // Call policy.check as normal
     match policy.check(&exec_call) {
         Ok(MatchedExec::Match { exec }) => {
-            if std::env::var("DEV_PLUG").is_ok() && std::env::var("FULL_COMMAND").is_ok() {
-                (Output::Safe { r#match: exec }, 0) // Return Safe with full match
-            } else if exec.might_write_files() && !std::env::var("DEV_PLUG").is_ok() {
-                let exit_code = if check {
-                    MATCHED_BUT_WRITES_FILES_EXIT_CODE
-                } else {
-                    0
-                };
-                (Output::Match { r#match: exec }, exit_code)
+            let exit_code = if require_safe {
+                MATCHED_BUT_WRITES_FILES_EXIT_CODE
             } else {
-                (Output::Match { r#match: exec }, 0) // Return Safe without full match
-            }
+                0
+            };
+            (Output::Match { r#match: exec }, exit_code)
+        }
+        Ok(MatchedExec::Overridden { reason }) => { // This variant was missing a require_safe check, assuming OVERSIGHT_DENIAL_EXIT_CODE is always appropriate
+            let exit_code = OVERSIGHT_DENIAL_EXIT_CODE;
+            (Output::Overridden { reason }, exit_code)
         }
         Ok(MatchedExec::Forbidden { reason, cause }) => {
-            let exit_code = if check { FORBIDDEN_EXIT_CODE } else { 0 };
+            let exit_code = if require_safe { FORBIDDEN_EXIT_CODE } else { 0 };
             (Output::Forbidden { reason, cause }, exit_code)
         }
         Err(err) => {
-            let exit_code = if check { MIGHT_BE_SAFE_EXIT_CODE } else { 0 };
+            let exit_code = if require_safe { MIGHT_BE_SAFE_EXIT_CODE } else { 0 };
             (Output::Unverified { error: err }, exit_code)
         }
     }
 }
-
 #[derive(Debug, Serialize)]
 #[serde(tag = "result")]
 pub enum Output {
@@ -229,26 +233,42 @@ pub enum Output {
         cause: codex_execpolicy::Forbidden,
     },
 
+    /// The command is overridden by policy, requiring oversight.
+    #[serde(rename = "overridden")]
+    Overridden { reason: String },
+
     /// The safety of the command could not be verified.
     #[serde(rename = "unverified")]
     Unverified { error: codex_execpolicy::Error },
 }
 
-fn deserialize_from_json<'de, D>(deserializer: D) -> Result<ExecArg, D::Error>
+// Newtype wrapper for ExecArg to satisfy orphan rules for FromStr
+#[derive(Clone, Debug, Deserialize)]
+struct MainExecArg(LibExecArg);
+
+impl FromStr for MainExecArg {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let lib_exec_arg: LibExecArg = serde_json::from_str(s)?;
+        Ok(MainExecArg(lib_exec_arg))
+    }
+}
+
+fn deserialize_from_json<'de, D>(deserializer: D) -> Result<MainExecArg, D::Error>
 where
     D: de::Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
-    let decoded = serde_json::from_str(&s)
+    let lib_exec_arg: LibExecArg = serde_json::from_str(&s)
         .map_err(|e| serde::de::Error::custom(format!("JSON parse error: {e}")))?;
-    Ok(decoded)
+    Ok(MainExecArg(lib_exec_arg))
 }
 
-impl FromStr for ExecArg {
-    type Err = anyhow::Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        serde_json::from_str(s).map_err(|e| e.into())
-    }
+
+fn current_risk_score() -> usize {
+    // Placeholder for actual risk assessment logic
+    // This function should return a risk score based on the command and environment
+    0
 }
-

@@ -5,6 +5,7 @@ use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 
 use anyhow::Context;
 use crate::{Policy, PolicyParser};
+use crate::threat_state::{ThreatMatrix, ThreatAssessment};
 
 /// Path to the CSV database containing risk assessment scores.
 ///
@@ -96,6 +97,78 @@ impl PolicyWatcher {
             *lock = parsed;
         }
         Ok(())
+    }
+
+    /// Registers a new tool and its risk score in the risk database.
+    ///
+    /// This appends the tool and score to the `RISK_DB_PATH` CSV file.
+    pub fn register_tool(&self, tool_name: &str, risk_score: f64) -> anyhow::Result<()> {
+        let mut content = std::fs::read_to_string(RISK_DB_PATH).unwrap_or_default();
+        content.push_str(&format!("\n{},{}", tool_name, risk_score));
+        std::fs::write(RISK_DB_PATH, content).context("writing to risk database")?;
+        Ok(())
+    }
+
+    /// Performs a prefilter check on the CSV data.
+    ///
+    /// This is used to reject CSV data that may be too risky to process.
+    pub fn prefilter_csv(&self) -> anyhow::Result<()> {
+        let risk_score = current_risk_score();
+        if risk_score > RISK_THRESHOLD {
+            anyhow::bail!("CSV prefilter rejected: risk score too high");
+        }
+        Ok(())
+    }
+
+    /// Decomposes a list of command strings into their base flags and compiles a batch of CSV values.
+    pub fn compile_csv_batch(&self, commands: Vec<String>) -> anyhow::Result<Vec<(String, f64)>> {
+        let mut results = Vec::new();
+        let Ok(content) = std::fs::read_to_string(RISK_DB_PATH) else {
+            return Ok(results);
+        };
+
+        let csv_data: Vec<(String, f64)> = content
+            .lines()
+            .skip(1) // Skip header
+            .filter_map(|line| {
+                let mut fields = line.split(',');
+                let tool_name = fields.next()?.trim().to_string();
+                let risk_score = fields.next()?.trim().parse::<f64>().ok()?;
+                Some((tool_name, risk_score))
+            })
+            .collect();
+
+        for command in commands {
+            let flags: Vec<String> = command.split_whitespace().map(|s| s.to_string()).collect();
+            for flag in flags {
+                if let Some((tool_name, risk_score)) = csv_data.iter().find(|(name, _)| name == &flag) {
+                    results.push((tool_name.clone(), *risk_score));
+                }
+            }
+        }
+
+        Ok(results)
+    }
+
+    /// Stub for modulating results based on history and combined patterns.
+    pub fn modulate_results(&self, batch: Vec<(String, f64)>) -> Vec<(String, f64)> {
+        // Placeholder for future implementation
+        batch
+    }
+
+    /// Processes the dimensionality of a ThreatMatrix based on the CSV data and commands.
+    pub fn process_threat_matrix(&self, commands: Vec<String>) -> ThreatMatrix {
+        let mut matrix = ThreatMatrix::new(100, 0.1); // Example parameters: max_size=100, decay_factor=0.1
+
+        if let Ok(batch) = self.compile_csv_batch(commands) {
+            for (tool_name, risk_score) in batch {
+                let assessment = ThreatAssessment::new(risk_score, risk_score * 1.2, vec![tool_name]);
+                matrix.add_assessment(assessment);
+            }
+        }
+
+        matrix.apply_decay();
+        matrix
     }
 }
 

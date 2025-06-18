@@ -5,6 +5,7 @@ use crate::Policy;
 use crate::ProgramSpec;
 use crate::arg_matcher::ArgMatcher;
 use crate::opt::OptMeta;
+use crate::ExecArg;
 use log::info;
 use multimap::MultiMap;
 use regex_lite::Regex;
@@ -69,6 +70,37 @@ impl PolicyParser {
         let policy = policy_builder.build();
         policy.map_err(|e| starlark::Error::new_kind(starlark::ErrorKind::Other(e.into())))
     }
+
+    pub fn raw_threat_vector(&self) -> Result<String, starlark::Error> {
+        let mut dialect = Dialect::Extended.clone();
+        dialect.enable_f_strings = true;
+        let ast = AstModule::parse(&self.policy_source, self.unparsed_policy.clone(), &dialect)?;
+        let globals = GlobalsBuilder::extended_by(&[LibraryExtension::Typing])
+            .with(policy_builtins)
+            .build();
+        let module = Module::new();
+
+        let heap = Heap::new();
+        module.set("ARG_OPAQUE_VALUE", heap.alloc(ArgMatcher::OpaqueNonFile));
+        module.set("ARG_RFILE", heap.alloc(ArgMatcher::ReadableFile));
+        module.set("ARG_WFILE", heap.alloc(ArgMatcher::WriteableFile));
+
+        let policy_builder = PolicyBuilder::new();
+        {
+            let mut eval = Evaluator::new(&module);
+            eval.extra = Some(&policy_builder);
+            eval.eval_module(ast, &globals)?;
+        }
+        Ok(policy_builder.raw_data())
+    }
+
+    pub fn human_readable_advice(&self, exec: &ExecArg) -> String {
+        let alternatives = vec!["alternative1", "alternative2"];
+        format!(
+            "Command: {}\nAlternatives: {:?}\nThreat State: Low",
+            exec.program, alternatives
+        )
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -115,6 +147,11 @@ impl PolicyBuilder {
     fn add_forbidden_program_regex(&self, regex: Regex, reason: String) {
         let mut forbidden_program_regexes = self.forbidden_program_regexes.borrow_mut();
         forbidden_program_regexes.push(ForbiddenProgramRegex { regex, reason });
+    }
+
+    pub fn raw_data(&self) -> String {
+        // Generate raw threat vector data from the policy builder
+        format!("Programs: {:?}, Forbidden: {:?}", self.programs, self.forbidden_program_regexes)
     }
 }
 

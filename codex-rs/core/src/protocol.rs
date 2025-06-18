@@ -14,6 +14,9 @@ use uuid::Uuid;
 
 use crate::config_types::ReasoningEffort as ReasoningEffortConfig;
 use crate::config_types::ReasoningSummary as ReasoningSummaryConfig;
+use codex_execpolicy::threat_state::{ThreatMatrix, ThreatLevel};
+
+use codex_execpolicy::policy_watcher::PolicyWatcher;
 use crate::message_history::HistoryEntry;
 use crate::model_provider_info::ModelProviderInfo;
 
@@ -159,6 +162,16 @@ impl SandboxPolicy {
             ],
         }
     }
+
+    pub fn outer_sandbox_policy(threat_matrix: ThreatMatrix, base_policy: SandboxPolicy) -> Self {
+        let permissions = match threat_matrix.evaluate() {
+            ThreatLevel::High => base_policy.permissions.into_iter().filter(|p| p.is_read_only()).collect(),
+            ThreatLevel::Medium => base_policy.permissions.into_iter().filter(|p| p.is_network_accessible()).collect(),
+            ThreatLevel::Low => base_policy.permissions,
+        };
+        Self { permissions }
+    }
+
     pub fn new_read_only_policy() -> Self {
         Self {
             permissions: vec![SandboxPermission::DiskFullReadAccess],
@@ -294,6 +307,16 @@ pub enum SandboxPermission {
 
     /// Can make arbitrary network requests.
     NetworkFullAccess,
+}
+
+impl SandboxPermission {
+    pub fn is_read_only(&self) -> bool {
+        matches!(self, SandboxPermission::DiskFullReadAccess)
+    }
+
+    pub fn is_network_accessible(&self) -> bool {
+        matches!(self, SandboxPermission::NetworkFullAccess)
+    }
 }
 
 /// User input
@@ -519,7 +542,6 @@ pub struct SessionConfiguredEvent {
     pub history_entry_count: usize,
 }
 
-/// User's decision in response to an ExecApprovalRequest.
 #[derive(Debug, Default, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ReviewDecision {
@@ -588,3 +610,19 @@ mod tests {
         );
     }
 }
+
+
+impl Protocol {
+    /// Example integration of ThreatMatrix blending.
+    pub fn integrate_threat_matrix(&self, watcher: &PolicyWatcher, commands: Vec<String>) -> ThreatMatrix {
+        let current_matrix = watcher.process_threat_matrix(commands);
+        let historical_matrix = ThreatMatrix::get_historical_matrix();
+
+        let blended_matrix = historical_matrix.blend_with_history(&current_matrix, Some(|past, present| past * 0.8 + present * 0.2));
+        blended_matrix.update_historical_matrix();
+
+        blended_matrix
+    }
+}
+
+pub struct Protocol {}

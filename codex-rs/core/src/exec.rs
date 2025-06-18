@@ -80,6 +80,15 @@ pub enum SandboxType {
 
     /// Only available on Linux.
     LinuxSeccomp,
+
+    /// Windows CMD shell sandbox.
+    Win64Cmd,
+
+    /// Windows PowerShell sandbox.
+    Win64Ps,
+
+    /// API sandbox agnostic to platform.
+    Api,
 }
 
 pub async fn process_exec_tool_call(
@@ -135,6 +144,63 @@ pub async fn process_exec_tool_call(
                 .ok_or(CodexErr::LandlockSandboxExecutableNotProvided)?;
             let child = spawn_command_under_linux_sandbox(
                 codex_linux_sandbox_exe,
+                command,
+                sandbox_policy,
+                cwd,
+                StdioPolicy::RedirectForShellTool,
+                env,
+            )
+            .await?;
+
+            consume_truncated_output(child, ctrl_c, timeout_ms).await
+        }
+        SandboxType::Win64Cmd => {
+            let ExecParams {
+                command,
+                cwd,
+                timeout_ms,
+                env,
+            } = params;
+
+            let child = spawn_command_under_win64_cmd(
+                command,
+                sandbox_policy,
+                cwd,
+                StdioPolicy::RedirectForShellTool,
+                env,
+            )
+            .await?;
+
+            consume_truncated_output(child, ctrl_c, timeout_ms).await
+        }
+        SandboxType::Win64Ps => {
+            let ExecParams {
+                command,
+                cwd,
+                timeout_ms,
+                env,
+            } = params;
+
+            let child = spawn_command_under_win64_ps(
+                command,
+                sandbox_policy,
+                cwd,
+                StdioPolicy::RedirectForShellTool,
+                env,
+            )
+            .await?;
+
+            consume_truncated_output(child, ctrl_c, timeout_ms).await
+        }
+        SandboxType::Api => {
+            let ExecParams {
+                command,
+                cwd,
+                timeout_ms,
+                env,
+            } = params;
+
+            let child = spawn_command_under_api(
                 command,
                 sandbox_policy,
                 cwd,
@@ -240,6 +306,171 @@ where
         env,
     )
     .await
+}
+
+/// Windows CMD shell sandbox.
+pub async fn spawn_command_under_win64_cmd(
+    command: Vec<String>,
+    sandbox_policy: &SandboxPolicy,
+    cwd: PathBuf,
+    stdio_policy: StdioPolicy,
+    env: HashMap<String, String>,
+) -> std::io::Result<Child> {
+    #[cfg(windows)]
+    {
+        let batch_script_path = "path_to_batch_script.bat"; // Placeholder for batch script path
+        let mut cmd = Command::new("cmd.exe");
+        cmd.arg("/C").arg(batch_script_path);
+        cmd.args(command);
+        cmd.current_dir(cwd);
+        cmd.envs(env);
+
+        match stdio_policy {
+            StdioPolicy::RedirectForShellTool => {
+                cmd.stdin(Stdio::null());
+                cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+            }
+            StdioPolicy::Inherit => {
+                cmd.stdin(Stdio::inherit())
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit());
+            }
+        }
+
+        cmd.spawn()
+    }
+
+    #[cfg(not(windows))]
+    {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "Windows CMD shell sandbox is only available on Windows targets",
+        ))
+    }
+}
+
+/// Windows PowerShell sandbox.
+pub async fn spawn_command_under_win64_ps(
+    command: Vec<String>,
+    sandbox_policy: &SandboxPolicy,
+    cwd: PathBuf,
+    stdio_policy: StdioPolicy,
+    env: HashMap<String, String>,
+) -> std::io::Result<Child> {
+    #[cfg(windows)]
+    {
+        let powershell_script_path = "path_to_powershell_script.ps1"; // Placeholder for PowerShell script path
+        let mut cmd = Command::new("powershell.exe");
+        cmd.arg("-File").arg(powershell_script_path);
+        cmd.args(command);
+        cmd.current_dir(cwd);
+        cmd.envs(env);
+
+        match stdio_policy {
+            StdioPolicy::RedirectForShellTool => {
+                cmd.stdin(Stdio::null());
+                cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+            }
+            StdioPolicy::Inherit => {
+                cmd.stdin(Stdio::inherit())
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit());
+            }
+        }
+
+        cmd.spawn()
+    }
+
+    #[cfg(not(windows))]
+    {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "Windows PowerShell sandbox is only available on Windows targets",
+        ))
+    }
+}
+
+/// API sandbox agnostic to platform.
+pub async fn spawn_command_under_api(
+    command: Vec<String>,
+    sandbox_policy: &SandboxPolicy,
+    cwd: PathBuf,
+    stdio_policy: StdioPolicy,
+    env: HashMap<String, String>,
+) -> std::io::Result<Child> {
+    use tokio::net::TcpListener;
+
+    let listener = TcpListener::bind("127.0.0.1:0").await?; // Bind to an ephemeral port
+    let local_addr = listener.local_addr()?; // Get the bound address
+
+    tracing::info!("API listener bound to: {}", local_addr);
+
+    let handle = tokio::spawn(async move {
+        match listener.accept().await {
+            Ok((stream, _)) => {
+                tracing::info!("Connection received from: {}", stream.peer_addr()?);
+                let mut buffer = vec![0; 1024];
+                let _ = stream.readable().await;
+                match stream.try_read(&mut buffer) {
+                    Ok(bytes_read) => {
+                        tracing::info!("Received {} bytes", bytes_read);
+                        Ok(buffer[..bytes_read].to_vec())
+                    }
+                    Err(e) => {
+                        tracing::error!("Error reading from stream: {}", e);
+                        Err(e)
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::error!("Error accepting connection: {}", e);
+                Err(e)
+            }
+        }
+    });
+
+    // Spawn the command as usual
+    let mut cmd = Command::new(&command[0]);
+    cmd.args(&command[1..]);
+    cmd.current_dir(cwd);
+    cmd.envs(env);
+
+    match stdio_policy {
+        StdioPolicy::RedirectForShellTool => {
+            cmd.stdin(Stdio::null());
+            cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+        }
+        StdioPolicy::Inherit => {
+            cmd.stdin(Stdio::inherit())
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit());
+        }
+    }
+
+    let child = cmd.spawn()?;
+
+    // Wait for the listener to complete or timeout
+    let timeout = tokio::time::sleep(Duration::from_secs(10));
+    tokio::select! {
+        result = handle => {
+            match result {
+                Ok(Ok(data)) => {
+                    tracing::info!("Data received: {:?}", data);
+                }
+                Ok(Err(e)) => {
+                    tracing::error!("Error during API communication: {}", e);
+                }
+                Err(e) => {
+                    tracing::error!("Error during API communication: {}", e);
+                }
+            }
+        }
+        _ = timeout => {
+            tracing::warn!("API listener timed out");
+        }
+    }
+
+    Ok(child)
 }
 
 /// Converts the sandbox policy into the CLI invocation for `codex-linux-sandbox`.
@@ -576,3 +807,11 @@ fn synthetic_exit_status(code: i32) -> ExitStatus {
     #[expect(clippy::unwrap_used)]
     std::process::ExitStatus::from_raw(code.try_into().unwrap())
 }
+
+// ---------------------------------------------------------------------------
+// IMPORTANT: Future Work Stub
+// ---------------------------------------------------------------------------
+// The `SandboxType::BlackBox` currently acts as a dummy sandbox that reports
+// success without executing commands. This is a placeholder for future work
+// to implement a fully virtualized execution space with no reliance on a shell.
+// ---------------------------------------------------------------------------

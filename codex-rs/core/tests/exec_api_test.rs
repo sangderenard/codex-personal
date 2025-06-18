@@ -1,0 +1,25 @@
+use std::collections::HashMap;
+use std::path::PathBuf;
+use codex_core::protocol::SandboxPolicy;
+use codex_core::exec::{spawn_command_under_api, StdioPolicy};
+
+#[tokio::test]
+async fn test_spawn_command_under_api() {
+    let command = vec!["echo".to_string(), "Hello, World!".to_string()];
+    let sandbox_policy = SandboxPolicy::new_full_auto_policy();
+    let cwd = PathBuf::from(".");
+    let stdio_policy = StdioPolicy::RedirectForShellTool;
+    let env = HashMap::new();
+
+    match spawn_command_under_api(command, &sandbox_policy, cwd, stdio_policy, env).await {
+        Ok(child) => {
+            let output = child.wait_with_output().await.expect("Failed to wait for child process");
+            assert!(output.status.success(), "Process did not exit successfully");
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            assert!(stdout.contains("Hello, World!"), "Unexpected output: {}", stdout);
+        }
+        Err(e) => {
+            panic!("Failed to spawn command under API: {}", e);
+        }
+    }
+}

@@ -184,10 +184,11 @@ impl From<ShellEnvironmentPolicyToml> for ShellEnvironmentPolicy {
 #[strum(serialize_all = "lowercase")]
 pub enum ReasoningEffort {
     Low,
-    #[default]
+
     Medium,
     High,
     /// Option to disable reasoning.
+    #[default]
     None,
 }
 

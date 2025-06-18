@@ -18,6 +18,7 @@ bytes = "1.10.1"
 codex-apply-patch = { path = "../apply-patch" }
 codex-login = { path = "../login" }
 codex-mcp-client = { path = "../mcp-client" }
+codex-execpolicy = { path = "../execpolicy" }
 dirs = "6"
 env-flags = "0.1.1"
 eventsource-stream = "0.2.3"

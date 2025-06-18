@@ -198,6 +198,10 @@ The hardening mechanism Codex uses depends on your OS:
   OpenAI API. This gives you deterministic, reproducible runs without needing
   root on the host. You can use the [`run_in_container.sh`](./codex-cli/scripts/run_in_container.sh) script to set up the sandbox.
 
+- **Windows (experimental)** - a future update may include a sandbox that runs commands under a
+  restricted Windows user account. The current codebase includes a non-functional skeleton for this
+  approach.
+
 ---
 
 ## System requirements
