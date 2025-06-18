@@ -738,3 +738,45 @@ Have you discovered a vulnerability or have concerns about model output? Please 
 ## License
 
 This repository is licensed under the [Apache-2.0 License](LICENSE).
+
+# ============================================================
+
+# DEVELOPMENT VERSION NOTICE
+
+# ============================================================
+
+# This is a development version of Codex. Nothing is guaranteed to work.
+
+# Passing tests is not necessary at this stage.
+
+#
+
+# All execution risk assessments must pass through `threat_state.rs`.
+
+#
+
+# Sandbox paths are available for:
+
+# - CMD
+
+# - PowerShell
+
+# - Generic API
+
+# - Dummy (some are not implemented).
+
+# - macOS (Seatbelt)
+
+# - Linux (Landlock)
+
+#
+
+# All guidance provided in this repository is outdated and cannot be relied upon.
+
+# ============================================================
+
+# ============================================================
+
+# END OF DEVELOPMENT VERSION NOTICE
+
+# ============================================================
