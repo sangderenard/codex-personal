@@ -1,3 +1,39 @@
+# ============================================================
+
+# DEVELOPMENT VERSION NOTICE
+
+# ============================================================
+
+# This is a development version of Codex. Nothing is guaranteed to work.
+
+# Passing tests is not necessary at this stage.
+
+#
+
+# All execution risk assessments must pass through `threat_state.rs`.
+
+#
+
+# Sandbox paths are available for:
+
+# - CMD
+
+# - PowerShell
+
+# - Generic API
+
+# - Dummy (some are not implemented).
+
+# - macOS (Seatbelt)
+
+# - Linux (Landlock)
+
+#
+
+# All guidance provided in this repository is outdated and cannot be relied upon.
+
+# ============================================================
+
 Overview of Protocol Defined in [protocol.rs](../core/src/protocol.rs) and [agent.rs](../core/src/agent.rs).
 
 The goal of this document is to define terminology used in the system and explain the expected behavior of the system.
@@ -170,3 +206,9 @@ sequenceDiagram
     task2->>user: Event::TurnCompleted
     task2->>-user: Event::TaskCompleted
 ```
+
+# ============================================================
+
+# END OF DEVELOPMENT VERSION NOTICE
+
+# ============================================================

@@ -1,0 +1,97 @@
+Environment,Command,Argument,Data loss,Unauthorized Access,Data Integrity,Privacy Breach,Service Disruption
+linux,rm,-rf /,5,1,5,2,3
+linux,cp,–force,2,1,2,1,1
+linux,mv,–force,3,1,3,1,1
+linux,chmod,777,2,3,2,1,1
+linux,chown,root:root,2,4,2,1,1
+linux,dd,if=/dev/zero of=/dev/sda,5,1,5,1,5
+linux,mkfs,ext4 /dev/sdb1,5,1,5,1,5
+linux,fdisk,-l,1,1,1,1,1
+linux,parted,/dev/sda mklabel gpt,4,1,4,1,4
+linux,mount,-o remount,ro,1,1,1,1,2
+linux,umount,-f /mnt,2,1,2,1,2
+linux,tar,–extract,2,1,2,1,1
+linux,gzip,-d file.gz,1,1,1,1,1
+linux,wget,–no-check-certificate,1,2,1,3,1
+linux,curl,-O,1,1,1,2,1
+linux,scp,-r,2,2,1,2,1
+linux,ssh,-X,1,4,1,3,1
+linux,ps,aux,1,1,1,1,1
+linux,kill,-9 1,3,1,4,1
+linux,systemctl,stop sshd,2,1,2,1,4
+linux,systemctl,disable network,3,1,2,1,5
+linux,journalctl,-f,1,1,1,1,1
+linux,apt-get,remove --purge,4,1,4,1,3
+linux,yum,upgrade -y,2,1,2,1,2
+linux,docker,rm -f,3,1,3,1,2
+linux,iptables,-F,3,1,2,1,4
+linux,ifconfig,eth0 down,2,1,1,1,5
+linux,ip,link delete veth0,3,1,3,1,5
+linux,netstat,-rn,1,1,1,1,1
+linux,ping,-f 8.8.8.8,2,1,1,1,3
+linux,traceroute,-n,1,1,1,1,1
+macos,rm,-rf /,5,1,5,2,3
+macos,cp,–force,2,1,2,1,1
+macos,mv,–force,3,1,3,1,1
+macos,chmod,777,2,3,2,1,1
+macos,chown,root:wheel,2,4,2,1,1
+macos,brew,uninstall --force,3,1,3,1,2
+macos,defaults,write com.apple.finder AppleShowAllFiles YES,1,1,1,2,1
+macos,open,-a TextEdit,1,1,1,1,1
+macos,say,-v Alex "Hello",1,1,1,1,1
+macos,networksetup,-setairportpower en0 off,2,1,1,1,4
+macos,softwareupdate,-i --all,2,1,2,1,2
+macos,spctl,--master-disable,1,4,1,3,1
+macos,pbcopy,<secret.txt,2,1,1,4,1
+macos,pbpaste,>out.txt,1,1,1,2,1
+macos,caffeinate,-u,1,1,1,1,2
+win64cmd,del,/f /q C:\Windows\System32\*,5,1,5,2,4
+win64cmd,copy,/y file1 file2,2,1,2,1,1
+win64cmd,move,/y C:\temp C:\backup,3,1,3,1,2
+win64cmd,ren,old.txt new.txt,1,1,1,1,1
+win64cmd,md,C:\NewFolder,1,1,1,1,1
+win64cmd,rd,/s /q C:\NewFolder,4,1,4,1,3
+win64cmd,format,C: /fs:NTFS /q,5,1,5,1,5
+win64cmd,chkdsk,C: /f,2,1,2,1,2
+win64cmd,attrib,+h secret.txt,1,1,1,3,1
+win64cmd,type,C:\secrets.txt,1,1,1,4,1
+win64cmd,findstr,/s /i password *.txt,1,2,1,4,1
+win64cmd,net user,Administrator /active:no,2,3,1,1,2
+win64cmd,net localgroup,Users JohnDoe /add,1,2,1,1,1
+win64cmd,sc,stop Spooler,2,1,2,1,3
+win64cmd,tasklist,/,1,1,1,1,1
+win64cmd,taskkill,/f /im notepad.exe,2,1,2,1,2
+win64cmd,ipconfig,/release,2,1,1,1,4
+win64cmd,ping,127.0.0.1 -t,1,1,1,1,1
+win64cmd,tracert,-d 8.8.8.8,1,1,1,1,1
+win64cmd,route,delete 0.0.0.0,3,1,2,1,4
+win64cmd,shutdown,/s /t 0,3,1,2,1,5
+win64ps,Get-ChildItem,-Force,2,1,2,1,1
+win64ps,Copy-Item,-Recurse,2,1,2,1,1
+win64ps,Move-Item,-Force,3,1,3,1,1
+win64ps,Remove-Item,-Recurse -Force,5,1,5,2,3
+win64ps,Rename-Item,-NewName bad.txt,new.txt,1,1,1,1,1
+win64ps,New-Item,-ItemType Directory -Path C:\Test,1,1,1,1,1
+win64ps,Set-ItemProperty,-Name 'HKLM:\Software\Bad' -Value 0,3,1,3,1
+win64ps,Get-Service,-Name wuauserv,1,1,1,1,1
+win64ps,Start-Service,-Name Spooler,1,1,1,1,2
+win64ps,Stop-Service,-Name Spooler,2,1,2,1,3
+win64ps,Restart-Service,-Name Spooler,3,1,3,1,4
+win64ps,Get-Process,-Name svchost,1,1,1,1,1
+win64ps,Stop-Process,-Id 4 -Force,3,1,3,1,4
+win64ps,Get-EventLog,-LogName System -Newest 100,1,1,1,1,1
+win64ps,Clear-EventLog,-LogName Application,2,1,2,1,2
+win64ps,Get-Content,-Path C:\Secrets\*.txt,2,1,1,4,1
+win64ps,Set-Content,-Path C:\Temp\out.txt -Value data,2,1,2,1,1
+win64ps,Add-Content,-Path C:\Temp\log.txt -Value entry,1,1,1,1,1
+win64ps,Get-Command,-Name Invoke-WebRequest,1,1,1,1,1
+win64ps,Invoke-WebRequest,-Uri http://malicious,1,4,1,3,1
+win64ps,Get-Help,-Name Remove-Item,1,1,1,1,1
+win64ps,Test-Connection,-ComputerName 8.8.8.8 -Count 100,1,1,1,1,2
+win64ps,Get-NetIPAddress,-AddressFamily IPv4,1,1,1,1,1
+win64ps,Restart-Computer,-Force,3,1,2,1,5
+win64ps,Shutdown-Computer,-Force,3,1,2,1,5
+win64ps,Set-ExecutionPolicy,-Scope LocalMachine Unrestricted,1,4,2,3,1
+win64ps,Import-Module,-Name ActiveDirectory,1,1,1,1,1
+win64ps,New-LocalUser,-Name Test -NoPassword,2,1,1,2,1
+win64ps,Add-LocalGroupMember,-Group Administrators -Member Test,2,3,1,2,1

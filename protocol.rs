@@ -14,9 +14,6 @@ use uuid::Uuid;
 
 use crate::config_types::ReasoningEffort as ReasoningEffortConfig;
 use crate::config_types::ReasoningSummary as ReasoningSummaryConfig;
-use codex_execpolicy::threat_state::{ThreatMatrix, ThreatLevel};
-
-use codex_execpolicy::policy_watcher::PolicyWatcher;
 use crate::message_history::HistoryEntry;
 use crate::model_provider_info::ModelProviderInfo;
 
@@ -162,16 +159,6 @@ impl SandboxPolicy {
             ],
         }
     }
-
-    pub fn outer_sandbox_policy(threat_matrix: ThreatMatrix, base_policy: SandboxPolicy) -> Self {
-        let permissions = match threat_matrix.evaluate() {
-            ThreatLevel::High => base_policy.permissions.into_iter().filter(|p| p.is_read_only()).collect(),
-            ThreatLevel::Medium => base_policy.permissions.into_iter().filter(|p| p.is_network_accessible()).collect(),
-            ThreatLevel::Low => base_policy.permissions,
-        };
-        Self { permissions }
-    }
-
     pub fn new_read_only_policy() -> Self {
         Self {
             permissions: vec![SandboxPermission::DiskFullReadAccess],
@@ -217,6 +204,14 @@ impl SandboxPolicy {
     }
 
     pub fn get_writable_roots_with_cwd(&self, cwd: &Path) -> Vec<PathBuf> {
+        // If full disk write access is granted, all paths are considered writable.
+        // We represent this by returning the root directory.
+        if self.has_full_disk_write_access() {
+            // On Unix-like systems, "/" represents the root.
+            // This signifies that any path is effectively within a writable "root".
+            return vec![PathBuf::from("/")];
+        }
+
         let mut writable_roots = Vec::<PathBuf>::new();
         for perm in &self.permissions {
             use SandboxPermission::*;
@@ -258,20 +253,16 @@ impl SandboxPolicy {
                 DiskWriteFolder { folder } => {
                     writable_roots.push(folder.clone());
                 }
-                DiskFullReadAccess | NetworkFullAccess => {}
-                DiskFullWriteAccess => {
-                    // Currently, we expect callers to only invoke this method
-                    // after verifying has_full_disk_write_access() is false.
-                }
+                // Read, network, or full write (already handled by the check above) permissions
+                // do not contribute specific writable roots in this context.
+                DiskFullReadAccess | NetworkFullAccess | DiskFullWriteAccess => {}
             }
         }
         writable_roots
     }
 
     pub fn is_unrestricted(&self) -> bool {
-        self.has_full_disk_read_access()
-            && self.has_full_disk_write_access()
-            && self.has_full_network_access()
+        *self == Self::full_jailbreak()
     }
 }
 
@@ -307,16 +298,6 @@ pub enum SandboxPermission {
 
     /// Can make arbitrary network requests.
     NetworkFullAccess,
-}
-
-impl SandboxPermission {
-    pub fn is_read_only(&self) -> bool {
-        matches!(self, SandboxPermission::DiskFullReadAccess)
-    }
-
-    pub fn is_network_accessible(&self) -> bool {
-        matches!(self, SandboxPermission::NetworkFullAccess)
-    }
 }
 
 /// User input
@@ -542,6 +523,7 @@ pub struct SessionConfiguredEvent {
     pub history_entry_count: usize,
 }
 
+/// User's decision in response to an ExecApprovalRequest.
 #[derive(Debug, Default, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ReviewDecision {
@@ -610,6 +592,3 @@ mod tests {
         );
     }
 }
-
-
-pub struct Protocol {}
