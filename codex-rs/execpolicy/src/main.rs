@@ -127,7 +127,7 @@ fn enforce_rate_limit(mode: RateLimitMode, used: usize) {
     }
 }
 
-fn enforce_rate_limit_internal(used: usize, per_minute: usize, per_day: usize) {
+fn enforce_rate_limit_internal(_used: usize, per_minute: usize, per_day: usize) {
     let mut execution_times = EXECUTION_TIMES.lock().unwrap();
     let now = Instant::now();
 
@@ -244,7 +244,7 @@ pub enum Output {
 
 // Newtype wrapper for ExecArg to satisfy orphan rules for FromStr
 #[derive(Clone, Debug, Deserialize)]
-struct MainExecArg(LibExecArg);
+pub struct MainExecArg(LibExecArg);
 
 impl FromStr for MainExecArg {
     type Err = anyhow::Error;

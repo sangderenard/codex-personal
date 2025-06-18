@@ -682,6 +682,7 @@ dependencies = [
  "log",
  "multimap",
  "notify",
+ "once_cell",
  "path-absolutize",
  "regex-lite",
  "serde",

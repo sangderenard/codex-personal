@@ -50,43 +50,25 @@ Further, "safety" in this system is not a guarantee that the command will execut
 
 ## Policy
 
-Currently, the default policy is defined in [`default.policy`](./src/default.policy) within the crate.
+The default policy is produced dynamically from [`risk_csv.csv`](./src/risk_csv.csv).
+Each row in this CSV describes a command and its threat metrics. When the
+policy watcher loads the file, it feeds these vectors through the threat
+evaluation pipeline to generate Starlark rules. Commands deemed risky by the
+aggregator are forbidden, while the rest are allowed via a generic
+`define_program` rule that accepts unverified arguments. This means there is no
+static `default.policy` in the repository—the policy is always derived from the
+CSV at runtime.
 
-The system uses [Starlark](https://bazel.build/rules/language) as the file format because, unlike something like JSON or YAML, it supports "macros" without compromising on safety or reproducibility. (Under the hood, we use [`starlark-rust`](https://github.com/facebook/starlark-rust) as the specific Starlark implementation.)
+The system uses [Starlark](https://bazel.build/rules/language) because it allows
+macros without compromising safety or reproducibility. (Under the hood we use
+[`starlark-rust`](https://github.com/facebook/starlark-rust).)
 
-This policy contains "rules" such as:
+`PolicyWatcher` keeps the parsed threat vectors in memory. Its methods allow
+callers to query the overall risk score or raw vector for a command at runtime.
 
-```python
-define_program(
-    program="cp",
-    options=[
-        flag("-r"),
-        flag("-R"),
-        flag("--recursive"),
-    ],
-    args=[ARG_RFILES, ARG_WFILE],
-    system_path=["/bin/cp", "/usr/bin/cp"],
-    should_match=[
-        ["foo", "bar"],
-    ],
-    should_not_match=[
-        ["foo"],
-    ],
-)
-```
-
-This rule means that:
-
-- `cp` can be used with any of the following flags (where "flag" means "an option that does not take an argument"): `-r`, `-R`, `--recursive`.
-- The initial `ARG_RFILES` passed to `args` means that it expects one or more arguments that correspond to "readable files"
-- The final `ARG_WFILE` passed to `args` means that it expects exactly one argument that corresponds to a "writeable file."
-- As a means of a lightweight way of including a unit test alongside the definition, the `should_match` list is a list of examples of `execv(3)` args that should match the rule and `should_not_match` is a list of examples that should not match. These examples are verified when the `.policy` file is loaded.
-
-Note that the language of the `.policy` file is still evolving, as we have to continue to expand it so it is sufficiently expressive to accept all commands we want to consider "safe" without allowing unsafe commands to pass through.
-
-The integrity of `default.policy` is verified [via unit tests](./tests).
-
-Further, the CLI supports a `--policy` option to specify a custom `.policy` file for ad-hoc testing.
+The integrity of the generated policy is verified [via unit tests](./tests). The
+CLI also supports a `--policy` option to load an alternative `.policy` file for
+ad-hoc testing.
 
 ## Output Type: `match`
 

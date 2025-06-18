@@ -7,7 +7,6 @@ use lazy_static::lazy_static;
 use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 
-use crate::policy_watcher::PolicyWatcher;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum ThreatLevel {
@@ -141,12 +140,6 @@ impl ThreatMatrix {
         for assessment in &mut self.window {
             assessment.evaluated_danger = reassess_fn(assessment);
         }
-    }
-
-    /// Defers decision-making to PolicyWatcher and rescoring based on current context.
-    pub fn defer_to_policy_watcher(&self, watcher: &PolicyWatcher, commands: Vec<String>) -> ThreatMatrix {
-        let rescored_matrix = watcher.process_threat_matrix(commands);
-        rescored_matrix // Return the rescored matrix as a separate piece of information
     }
 
     /// Blends the historical matrix with the rescored matrix and aggregates threat values.

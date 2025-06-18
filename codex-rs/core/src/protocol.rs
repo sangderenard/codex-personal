@@ -612,17 +612,4 @@ mod tests {
 }
 
 
-impl Protocol {
-    /// Example integration of ThreatMatrix blending.
-    pub fn integrate_threat_matrix(&self, watcher: &PolicyWatcher, commands: Vec<String>) -> ThreatMatrix {
-        let current_matrix = watcher.process_threat_matrix(commands);
-        let historical_matrix = ThreatMatrix::get_historical_matrix();
-
-        let blended_matrix = historical_matrix.blend_with_history(&current_matrix, Some(|past, present| past * 0.8 + present * 0.2));
-        blended_matrix.update_historical_matrix();
-
-        blended_matrix
-    }
-}
-
 pub struct Protocol {}
