@@ -7,9 +7,11 @@ use codex_core::config::ConfigOverrides;
 use codex_core::exec::StdioPolicy;
 use codex_core::exec::spawn_command_under_linux_sandbox;
 use codex_core::exec::spawn_command_under_seatbelt;
-use codex_core::exec::spawn_command_under_windows_user;
+use codex_core::exec::spawn_command_under_win64_cmd;
+use codex_core::exec::spawn_command_under_win64_ps;
 use codex_core::exec_env::create_env;
 use codex_core::protocol::SandboxPolicy;
+use codex_core::config_types::ShellEnvironmentPolicy;
 
 use crate::LandlockCommand;
 use crate::SeatbeltCommand;
@@ -74,6 +76,9 @@ pub async fn run_command_black_box(command: BlackBoxCommand) -> anyhow::Result<(
 enum SandboxType {
     Seatbelt,
     Landlock,
+    BlackBox,
+    Win64Cmd,
+    Win64Ps,
 }
 
 async fn run_command_under_sandbox(
@@ -124,6 +129,26 @@ async fn run_command_under_sandbox(
             )
             .await?
         }
+        SandboxType::Win64Cmd => {
+            spawn_command_under_win64_cmd(
+                command,
+                &config.sandbox_policy,
+                cwd,
+                stdio_policy,
+                env,
+            )
+            .await?
+        }
+        SandboxType::Win64Ps => {
+            spawn_command_under_win64_ps(
+                command,
+                &config.sandbox_policy,
+                cwd,
+                stdio_policy,
+                env,
+            )
+            .await?
+        }
     };
     let status = child.wait().await?;
 
@@ -137,10 +162,8 @@ pub fn create_sandbox_policy(full_auto: bool, sandbox: SandboxPermissionOption) 
     }
 
     if full_auto {
-        return SandboxPolicy::full_jailbreak();
+        SandboxPolicy::full_jailbreak()
     } else {
-        return SandbodPolicy::full_jailbreak();
-
         match sandbox.permissions.map(Into::into) {
             Some(sandbox_policy) => sandbox_policy,
             None => SandboxPolicy::full_jailbreak(),
@@ -148,12 +171,46 @@ pub fn create_sandbox_policy(full_auto: bool, sandbox: SandboxPermissionOption) 
     }
 }
 
-pub async fn run_command_under_win64_cmd(command: Vec<String>, sandbox_policy: SandboxPolicy) -> anyhow::Result<()> {
-    // Define logic for running commands in Windows CMD shell.
+pub async fn run_command_under_win64_cmd(
+    command: Vec<String>,
+    sandbox_policy: SandboxPolicy,
+) -> anyhow::Result<()> {
+    let cwd = std::env::current_dir()?;
+    let env = create_env(&ShellEnvironmentPolicy::default());
+    let stdio_policy = StdioPolicy::Inherit;
+
+    let mut child = spawn_command_under_win64_cmd(
+        command,
+        &sandbox_policy,
+        cwd,
+        stdio_policy,
+        env,
+    )
+    .await?;
+
+    let status = child.wait().await?;
+    handle_exit_status(status);
 }
 
-pub async fn run_command_under_win64_ps(command: Vec<String>, sandbox_policy: SandboxPolicy) -> anyhow::Result<()> {
-    // Define logic for running commands in Windows PowerShell.
+pub async fn run_command_under_win64_ps(
+    command: Vec<String>,
+    sandbox_policy: SandboxPolicy,
+) -> anyhow::Result<()> {
+    let cwd = std::env::current_dir()?;
+    let env = create_env(&ShellEnvironmentPolicy::default());
+    let stdio_policy = StdioPolicy::Inherit;
+
+    let mut child = spawn_command_under_win64_ps(
+        command,
+        &sandbox_policy,
+        cwd,
+        stdio_policy,
+        env,
+    )
+    .await?;
+
+    let status = child.wait().await?;
+    handle_exit_status(status);
 }
 
 // ---------------------------------------------------------------------------
