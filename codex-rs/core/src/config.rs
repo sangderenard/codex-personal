@@ -738,7 +738,7 @@ disable_response_storage = true
             name: "OpenAI using Chat Completions".to_string(),
             base_url: "https://api.openai.com/v1".to_string(),
             env_key: Some("OPENAI_API_KEY".to_string()),
-            wire_api: core::WireApi::Chat,
+            wire_api: crate::WireApi::Chat,
             env_key_instructions: None,
         };
         let model_provider_map = {
