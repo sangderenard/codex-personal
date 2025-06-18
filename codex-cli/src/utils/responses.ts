@@ -296,15 +296,16 @@ function estimateTokensForMessages(
     if (typeof m.content === "string") {
       contentLength = m.content.length;
     } else if (Array.isArray(m.content)) {
-      contentLength = (m.content as Array<MessageContent>).reduce((acc, c) => {
+      const validatedContent = (m.content as Array<unknown>).map((c) => {
         if (typeof c === "string") {
-          return acc + c.length; // Standard string function: length
+          return ensureNumber(c.length);
         }
-        if (typeof c === "object" && c !== null && "text" in c && typeof c.text === "string") {
-          return acc + c.text.length; // Standard string function: length
+        if (typeof c === "object" && c !== null && "text" in c && typeof (c as { text: unknown }).text === "string") {
+          return ensureNumber((c as { text: string }).text.length);
         }
-        return acc;
-      }, 0);
+        return 0; // Default fallback
+      });
+      contentLength = validatedContent.reduce((acc, length) => acc + length, 0);
     }
     return sum + contentLength;
   }, 0);
@@ -1005,6 +1006,13 @@ async function* streamResponses(
 
     yield { type: "response.completed", response: finalResponse };
   }
+}
+
+function ensureNumber(value: unknown): number {
+  if (typeof value === "number") {
+    return value;
+  }
+  throw new Error("Value is not a number");
 }
 
 

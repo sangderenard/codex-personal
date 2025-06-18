@@ -127,7 +127,7 @@ fn enforce_rate_limit(mode: RateLimitMode, used: usize) {
     }
 }
 
-fn enforce_rate_limit_internal(_used: usize, _per_minute: usize, _per_day: usize) {
+fn enforce_rate_limit_internal(used: usize, per_minute: usize, per_day: usize) {
     let mut execution_times = EXECUTION_TIMES.lock().unwrap();
     let now = Instant::now();
 
@@ -205,7 +205,7 @@ fn check_command(
             (Output::Overridden { reason }, exit_code)
         }
         Ok(MatchedExec::Forbidden { reason, cause }) => {
-            let exit_code = if check { FORBIDDEN_EXIT_CODE } else { 0 };
+            let exit_code = if require_safe { FORBIDDEN_EXIT_CODE } else { 0 };
             (Output::Forbidden { reason, cause }, exit_code)
         }
         Err(err) => {
@@ -265,14 +265,7 @@ where
     Ok(MainExecArg(lib_exec_arg))
 }
 
-impl FromStr for MainExecArg {
-    type Err = anyhow::Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let lib_exec_arg: LibExecArg = serde_json::from_str(s)?;
-        Ok(MainExecArg(lib_exec_arg))
-    }
-}
 
 fn current_risk_score() -> usize {
     // Placeholder for actual risk assessment logic
