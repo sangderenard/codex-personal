@@ -10,8 +10,8 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::env::VarError;
 
-use crate::error::EnvVarError;
-use crate::openai_api_key::get_openai_api_key;
+use core::error::EnvVarError;
+use core::openai_api_key::get_openai_api_key;
 
 /// Wire protocol that the provider speaks. Most third-party services only
 /// implement the classic OpenAI Chat Completions JSON schema, whereas OpenAI
