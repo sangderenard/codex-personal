@@ -37,6 +37,7 @@ import { randomUUID } from "node:crypto";
 import OpenAI, { APIConnectionTimeoutError, AzureOpenAI } from "openai";
 import os from "os";
 import { createRateLimiter } from "../rateLimiter";
+import { CentralizedControl } from './centralized-control';
 
 // Wait time before retrying after rate limit errors (ms).
 const RATE_LIMIT_RETRY_WAIT_MS = parseInt(
@@ -144,6 +145,8 @@ export class AgentLoop {
     applyPatch: ApplyPatchCommand | undefined,
   ) => Promise<CommandConfirmation>;
   private onLastResponseId: (lastResponseId: string) => void;
+
+  private centralizedControl: CentralizedControl;
 
   /**
    * A reference to the currently active stream returned from the OpenAI
@@ -367,6 +370,8 @@ export class AgentLoop {
       () => this.execAbortController?.abort(),
       { once: true },
     );
+
+    this.centralizedControl = new CentralizedControl(this.config);
   }
 
   private async handleFunctionCall(
@@ -538,6 +543,14 @@ export class AgentLoop {
     }
 
     return [outputItem, ...additionalItems];
+  }
+
+  private async executeTool(tool: Tool, args: any): Promise<ResponseItem> {
+    const result = await this.centralizedControl.execute(tool as ToolDefinition, args);
+    return {
+      ...result,
+      call_id: "generated-call-id" // Provide a default or derived value for `call_id`
+    } as ResponseItem;
   }
 
   public async run(
@@ -1764,3 +1777,14 @@ function filterToApiMessages(
     return true;
   });
 }
+
+export type ToolDefinition = {
+  type: string;
+  execute: (args: any) => Promise<ResponseItemDefinition>;
+};
+
+export type ResponseItemDefinition = {
+  id: string;
+  type: string;
+  output: string;
+};

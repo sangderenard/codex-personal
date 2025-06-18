@@ -188,7 +188,7 @@ pub enum ReasoningEffort {
     Medium,
     High,
     /// Option to disable reasoning.
-    #[default],
+    #[default]
     None,
 }
 

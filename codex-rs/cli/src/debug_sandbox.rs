@@ -74,7 +74,6 @@ pub async fn run_command_black_box(command: BlackBoxCommand) -> anyhow::Result<(
 enum SandboxType {
     Seatbelt,
     Landlock,
-    WindowsUser,
 }
 
 async fn run_command_under_sandbox(
@@ -148,3 +147,20 @@ pub fn create_sandbox_policy(full_auto: bool, sandbox: SandboxPermissionOption) 
         }
     }
 }
+
+pub async fn run_command_under_win64_cmd(command: Vec<String>, sandbox_policy: SandboxPolicy) -> anyhow::Result<()> {
+    // Define logic for running commands in Windows CMD shell.
+}
+
+pub async fn run_command_under_win64_ps(command: Vec<String>, sandbox_policy: SandboxPolicy) -> anyhow::Result<()> {
+    // Define logic for running commands in Windows PowerShell.
+}
+
+// ---------------------------------------------------------------------------
+// IMPORTANT: Future Work Stub
+// ---------------------------------------------------------------------------
+// The `run_command_black_box` function currently approves commands without
+// executing them. This is a placeholder for future development where we will
+// implement a bidirectional API for controlling Python execution directly
+// through LLM-interpreted programmatic actions.
+// ---------------------------------------------------------------------------

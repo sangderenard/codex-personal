@@ -303,7 +303,9 @@ system_path=[{fake_cp:?}]
         let path = file.path().with_extension("cmd");
         std::fs::rename(file.path(), &path).unwrap();
 
-        std::env::set_var("PATHEXT", ".COM;.CMD;.BAT");
+        unsafe {
+            std::env::set_var("PATHEXT", ".COM;.CMD;.BAT");
+        }
         assert!(is_executable_file(path.to_str().unwrap()));
     }
 }

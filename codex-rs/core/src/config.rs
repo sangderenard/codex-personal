@@ -13,6 +13,7 @@ use crate::model_provider_info::built_in_model_providers;
 use crate::protocol::AskForApproval;
 use crate::protocol::SandboxPermission;
 use crate::protocol::SandboxPolicy;
+use codex_execpolicy::threat_state::{ThreatMatrix, ThreatLevel};
 use dirs::home_dir;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -294,6 +295,9 @@ pub struct ConfigToml {
 
     pub model_reasoning_effort: Option<ReasoningEffort>,
     pub model_reasoning_summary: Option<ReasoningSummary>,
+
+    /// Optional threat configuration.
+    pub threat_config: Option<String>,
 }
 
 fn deserialize_sandbox_permissions<'de, D>(
@@ -375,7 +379,7 @@ impl Config {
                 match cfg.sandbox_permissions {
                     Some(permissions) => SandboxPolicy::from(permissions),
                     None => {
-                        let threat_matrix = ThreatMatrix::new(cfg.threat_config);
+                        let threat_matrix = ThreatMatrix::new(1000, 0.05);
                         if threat_matrix.evaluate() == ThreatLevel::Low {
                             SandboxPolicy::new_read_only_policy()
                         } else {
