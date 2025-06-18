@@ -1,5 +1,5 @@
-import { ToolDefinition, ResponseItemDefinition } from './agent-loop';
-import { AppConfig } from '../config';
+import type { ToolDefinition, ResponseItemDefinition } from './agent-loop';
+import type { AppConfig } from '../config';
 
 export class CentralizedControl {
   private config: AppConfig;

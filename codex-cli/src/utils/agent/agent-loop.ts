@@ -30,14 +30,14 @@ import {
   setSessionId,
 } from "../session.js";
 import { applyPatchToolInstructions } from "./apply-patch.js";
+import { CentralizedControl } from './centralized-control';
 import { handleExecCommand } from "./handle-exec-command.js";
+import { createRateLimiter } from "../rateLimiter";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import OpenAI, { APIConnectionTimeoutError, AzureOpenAI } from "openai";
 import os from "os";
-import { createRateLimiter } from "../rateLimiter";
-import { CentralizedControl } from './centralized-control';
 
 // Wait time before retrying after rate limit errors (ms).
 const RATE_LIMIT_RETRY_WAIT_MS = parseInt(
