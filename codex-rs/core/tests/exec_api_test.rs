@@ -11,10 +11,9 @@ async fn test_spawn_command_under_api() {
     let stdio_policy = StdioPolicy::RedirectForShellTool;
     let env = HashMap::new();
 
-    match spawn_command_under_api(command, &sandbox_policy, cwd, stdio_policy, env).await {
-        Ok(child) => {
-            let output = child.wait_with_output().await.expect("Failed to wait for child process");
-            assert!(output.status.success(), "Process did not exit successfully");
+    match spawn_command_under_api(command, &sandbox_policy, cwd, stdio_policy, env, None).await {
+        Ok(output) => {
+            assert!(output.exit_status.success(), "Process did not exit successfully");
             let stdout = String::from_utf8_lossy(&output.stdout);
             assert!(stdout.contains("Hello, World!"), "Unexpected output: {}", stdout);
         }
