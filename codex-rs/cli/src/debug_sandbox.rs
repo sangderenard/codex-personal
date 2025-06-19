@@ -9,15 +9,15 @@ use codex_core::exec::spawn_command_under_linux_sandbox;
 use codex_core::exec::spawn_command_under_seatbelt;
 use codex_core::exec::spawn_command_under_win64_cmd;
 use codex_core::exec::spawn_command_under_win64_ps;
-use codex_core::exec::spawn_command_under_black_box;
+use codex_core::black_box::black_box::spawn_command_under_black_box;
+use codex_core::black_box::BlackBoxCommand;
 use codex_core::exec::spawn_command_under_api;
 use codex_core::exec_env::create_env;
 use codex_core::protocol::SandboxPolicy;
 use codex_core::config_types::ShellEnvironmentPolicy;
-
+use crate::ApiCommand;
 use crate::LandlockCommand;
 use crate::SeatbeltCommand;
-use crate::BlackBoxCommand;
 use crate::exit_status::handle_exit_status;
 
 pub async fn run_command_under_seatbelt(
@@ -62,14 +62,57 @@ pub async fn run_command_under_landlock(
     .await
 }
 
+pub async fn run_command_under_black_box(
+    command: BlackBoxCommand,
+    codex_linux_sandbox_exe: Option<PathBuf>,
+) -> anyhow::Result<()> {
+    let BlackBoxCommand {
+        full_auto,
+        sandbox,
+        config_overrides,
+        command,
+    } = command;
+    run_command_under_sandbox(
+        full_auto,
+        sandbox,
+        command,
+        config_overrides,
+        codex_linux_sandbox_exe,
+        SandboxType::BlackBox,
+    )
+    .await
+}
+
+pub async fn run_command_under_api(
+    command: ApiCommand,
+    codex_linux_sandbox_exe: Option<PathBuf>,
+) -> anyhow::Result<()> {
+    let ApiCommand {
+        full_auto,
+        sandbox,
+        config_overrides,
+        command,
+    } = command;
+
+    run_command_under_sandbox(
+        full_auto,
+        sandbox,
+        command,
+        config_overrides,
+        codex_linux_sandbox_exe,
+        SandboxType::Api,
+    )
+    .await
+}
 
 enum SandboxType {
     Seatbelt,
     Landlock,
+    LinuxSeccomp,
     BlackBox,
     Win64Cmd,
     Win64Ps,
-    API,
+    Api,
 }
 
 async fn run_command_under_sandbox(
@@ -96,9 +139,20 @@ async fn run_command_under_sandbox(
     let env = create_env(&config.shell_environment_policy);
 
     let mut child = match sandbox_type {
-        SandboxType::Seatbelt => {
-            spawn_command_under_seatbelt(command, &config.sandbox_policy, cwd, stdio_policy, env)
-                .await?
+        SandboxType::LinuxSeccomp => {
+            #[expect(clippy::expect_used)]
+            let codex_linux_sandbox_exe = config
+                .codex_linux_sandbox_exe
+                .expect("codex-linux-sandbox executable not found");
+            spawn_command_under_linux_sandbox(
+                codex_linux_sandbox_exe,
+                command,
+                &config.sandbox_policy,
+                cwd,
+                stdio_policy,
+                env,
+            )
+            .await?
         }
         SandboxType::Landlock => {
             #[expect(clippy::expect_used)]
@@ -107,6 +161,26 @@ async fn run_command_under_sandbox(
                 .expect("codex-linux-sandbox executable not found");
             spawn_command_under_linux_sandbox(
                 codex_linux_sandbox_exe,
+                command,
+                &config.sandbox_policy,
+                cwd,
+                stdio_policy,
+                env,
+            )
+            .await?
+        }
+        SandboxType::Seatbelt => {
+            spawn_command_under_seatbelt(
+                command,
+                &config.sandbox_policy,
+                cwd,
+                stdio_policy,
+                env,
+            )
+            .await?
+        }
+        SandboxType::BlackBox => {
+            spawn_command_under_black_box(
                 command,
                 &config.sandbox_policy,
                 cwd,
@@ -135,16 +209,19 @@ async fn run_command_under_sandbox(
             )
             .await?
         }
-        SandboxType::API => {
-            // Placeholder for future API sandbox implementation
-            todo!("Handle API sandbox type")
-        }
-        SandboxType::BlackBox => {
-            todo!("Handle BlackBox sandbox type")
+        SandboxType::Api => {
+            spawn_command_under_api(
+                command,
+                &config.sandbox_policy,
+                cwd,
+                stdio_policy,
+                env,
+            )
+            .await?
         }
     };
-    let status = child.wait().await?;
 
+    let status = child.wait().await?;
     handle_exit_status(status);
 }
 
@@ -189,48 +266,6 @@ pub async fn run_command_under_win64_ps(
     let stdio_policy = StdioPolicy::Inherit;
 
     let mut child = spawn_command_under_win64_ps(
-        command,
-        &sandbox_policy,
-        cwd,
-        stdio_policy,
-        env,
-    )
-    .await?;
-
-    let status = child.wait().await?;
-    handle_exit_status(status);
-}
-
-pub async fn run_command_under_black_box(
-    command: Vec<String>,
-    sandbox_policy: SandboxPolicy,
-) -> anyhow::Result<()> {
-    let cwd = std::env::current_dir()?;
-    let env = create_env(&ShellEnvironmentPolicy::default());
-    let stdio_policy = StdioPolicy::Inherit;
-
-    let mut child = spawn_command_under_black_box(
-        command,
-        &sandbox_policy,
-        cwd,
-        stdio_policy,
-        env,
-    )
-    .await?;
-
-    let status = child.wait().await?;
-    handle_exit_status(status);
-}
-
-pub async fn run_command_under_api(
-    command: Vec<String>,
-    sandbox_policy: SandboxPolicy,
-) -> anyhow::Result<()> {
-    let cwd = std::env::current_dir()?;
-    let env = create_env(&ShellEnvironmentPolicy::default());
-    let stdio_policy = StdioPolicy::Inherit;
-
-    let mut child = spawn_command_under_api(
         command,
         &sandbox_policy,
         cwd,

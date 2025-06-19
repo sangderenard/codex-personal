@@ -3,6 +3,10 @@ name = "codex-common"
 version = { workspace = true }
 edition = "2024"
 
+[lib]
+name = "codex_common"
+path = "src/lib.rs"
+
 [lints]
 workspace = true
 

@@ -643,6 +643,7 @@ dependencies = [
  "tokio-util",
  "toml",
  "tracing",
+ "translation",
  "tree-sitter",
  "tree-sitter-bash",
  "uuid",
@@ -4679,7 +4680,6 @@ dependencies = [
 name = "translation"
 version = "0.1.0"
 dependencies = [
- "codex-execpolicy",
  "once_cell",
 ]
 

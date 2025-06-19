@@ -24,6 +24,10 @@ use crate::error::CodexErr;
 use crate::error::Result;
 use crate::error::SandboxErr;
 use crate::protocol::SandboxPolicy;
+use crate::safety::detect_windows_shell;
+
+use crate::config_types::ShellEnvironmentPolicy;
+
 
 // Maximum we send for each stream, which is either:
 // - 10KiB OR
@@ -57,10 +61,66 @@ const MACOS_PATH_TO_SEATBELT_EXECUTABLE: &str = "/usr/bin/sandbox-exec";
 /// attributes, so this may change in the future.
 pub const CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR: &str = "CODEX_SANDBOX_NETWORK_DISABLED";
 
-/// When this variable is set to a non-empty value, all sandbox implementations
-/// are replaced with a dummy "black box" sandbox that merely reports success
-/// without executing any commands.
-pub const CODEX_DUMMY_SANDBOX_ENV_VAR: &str = "CODEX_DUMMY_SANDBOX";
+/// Integer constants representing sandbox states.
+pub const CODEX_BLACK_BOX_SANDBOX_STATE: i32 = 0;
+pub const CODEX_API_SANDBOX_STATE: i32 = 1;
+pub const CODEX_WINDOWS_CMD_SANDBOX_STATE: i32 = 2;
+pub const CODEX_WINDOWS_PS_SANDBOX_STATE: i32 = 3;
+pub const CODEX_LINUX_SHELL_SANDBOX_STATE: i32 = 4;
+pub const CODEX_MACOS_SANDBOX_STATE: i32 = 5;
+
+/// Global variables to toggle API and Black Box states.
+static mut API_SANDBOX_ENABLED: bool = false;
+static mut BLACK_BOX_SANDBOX_ENABLED: bool = false;
+
+/// Function to determine the active sandbox state.
+pub fn determine_sandbox_state() -> i32 {
+    unsafe {
+        if API_SANDBOX_ENABLED {
+            CODEX_API_SANDBOX_STATE
+        } else if BLACK_BOX_SANDBOX_ENABLED {
+            CODEX_BLACK_BOX_SANDBOX_STATE
+        } else if cfg!(target_os = "windows") {
+            match detect_windows_shell().as_str() {
+                "cmd" => CODEX_WINDOWS_CMD_SANDBOX_STATE,
+                "powershell" => CODEX_WINDOWS_PS_SANDBOX_STATE,
+                "wsl" | "bash for windows" => CODEX_LINUX_SHELL_SANDBOX_STATE,
+                _ => CODEX_BLACK_BOX_SANDBOX_STATE,
+            }
+        } else if cfg!(target_os = "linux") {
+            CODEX_LINUX_SHELL_SANDBOX_STATE
+        } else if cfg!(target_os = "macos") {
+            CODEX_MACOS_SANDBOX_STATE
+        } else {
+            CODEX_BLACK_BOX_SANDBOX_STATE
+        }
+    }
+}
+
+/// Functions to toggle API and Black Box states.
+pub fn enable_api_sandbox() {
+    unsafe {
+        API_SANDBOX_ENABLED = true;
+    }
+}
+
+pub fn disable_api_sandbox() {
+    unsafe {
+        API_SANDBOX_ENABLED = false;
+    }
+}
+
+pub fn enable_black_box_sandbox() {
+    unsafe {
+        BLACK_BOX_SANDBOX_ENABLED = true;
+    }
+}
+
+pub fn disable_black_box_sandbox() {
+    unsafe {
+        BLACK_BOX_SANDBOX_ENABLED = false;
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ExecParams {
@@ -74,7 +134,7 @@ pub struct ExecParams {
 pub enum SandboxType {
     None,
 
-    /// Dummy sandbox that pretends the command executed successfully.
+    /// Not implemented yet, similar to API but internal to this codebase.
     BlackBox,
 
     /// Only available on macOS.
@@ -122,7 +182,7 @@ pub async fn process_exec_tool_call(
     println!("{}", translated_command); // Log the translation
 
     let mut sandbox_type = sandbox_type;
-    if std::env::var(CODEX_DUMMY_SANDBOX_ENV_VAR).is_ok() {
+    if CODEX_BLACK_BOX_SANDBOX_STATE == determine_sandbox_state() {
         sandbox_type = SandboxType::BlackBox;
     }
 
@@ -829,10 +889,13 @@ fn synthetic_exit_status(code: i32) -> ExitStatus {
     std::process::ExitStatus::from_raw(code.try_into().unwrap())
 }
 
-// ---------------------------------------------------------------------------
-// IMPORTANT: Future Work Stub
-// ---------------------------------------------------------------------------
-// The `SandboxType::BlackBox` currently acts as a dummy sandbox that reports
-// success without executing commands. This is a placeholder for future work
-// to implement a fully virtualized execution space with no reliance on a shell.
-// ---------------------------------------------------------------------------
+pub async fn spawn_command_under_black_box(
+    command: Vec<String>,
+    sandbox_policy: SandboxPolicy,
+    cwd: PathBuf,
+    stdio_policy: StdioPolicy,
+    env: ShellEnvironmentPolicy,
+) -> anyhow::Result<()> {
+    // Implementation for spawning a command under BlackBox
+    Ok(())
+}

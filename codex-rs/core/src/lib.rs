@@ -44,7 +44,7 @@ pub mod message_history;
 pub mod openai_api_key;
 
 pub mod codex_wrapper;
-
+pub mod black_box;
 pub use client_common::model_supports_reasoning_summaries;
 
 pub use model_provider_info::WireApi;

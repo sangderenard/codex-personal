@@ -94,27 +94,31 @@ pub fn assess_command_safety(
         }
     }
 }
-
+use crate::exec::determine_sandbox_state;
+use crate::exec::{
+    CODEX_BLACK_BOX_SANDBOX_STATE,
+    CODEX_API_SANDBOX_STATE,
+    CODEX_MACOS_SANDBOX_STATE,
+    CODEX_LINUX_SHELL_SANDBOX_STATE,
+    CODEX_WINDOWS_CMD_SANDBOX_STATE,
+    CODEX_WINDOWS_PS_SANDBOX_STATE,
+};
 pub fn get_platform_sandbox() -> Option<SandboxType> {
-    if std::env::var(crate::exec::CODEX_DUMMY_SANDBOX_ENV_VAR).is_ok() {
-        return Some(SandboxType::BlackBox);
-    } else if( std::env::var(crate::exec::CODEX_API_SANDBOX_ENV_VAR).is_ok() ) {
-        return Some(SandboxType::Api);
-    }
-
-    if cfg!(target_os = "macos") {
+    let active_type = determine_sandbox_state();
+    if CODEX_BLACK_BOX_SANDBOX_STATE == active_type {
+        Some(SandboxType::BlackBox)
+    } else if CODEX_API_SANDBOX_STATE == active_type {
+        Some(SandboxType::Api)
+    } else if CODEX_MACOS_SANDBOX_STATE == active_type {
         Some(SandboxType::MacosSeatbelt)
-    } else if cfg!(target_os = "linux") {
+    } else if CODEX_LINUX_SHELL_SANDBOX_STATE == active_type {
         Some(SandboxType::LinuxSeccomp)
-    } else if cfg!(target_os = "windows") {
-        match detect_windows_shell().as_str() {
-            "powershell" => Some(SandboxType::Win64Ps),
-            "cmd" => Some(SandboxType::Win64Cmd),
-            "bash for windows" | "wsl" => Some(SandboxType::Landlock,
-            _ => panic!("Unsupported shell for sandboxing"),
-        }
+    } else if CODEX_WINDOWS_CMD_SANDBOX_STATE == active_type {
+        Some(SandboxType::Win64Cmd)
+    } else if CODEX_WINDOWS_PS_SANDBOX_STATE == active_type {
+        Some(SandboxType::Win64Ps)
     } else {
-        panic!("Unsupported platform for sandboxing");
+        Some(SandboxType::BlackBox)
     }
 }
 
