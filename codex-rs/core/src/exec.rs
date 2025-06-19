@@ -530,6 +530,7 @@ pub async fn spawn_command_under_api(
                 stdout: output.into_bytes(),
                 stderr: Vec::new(),
             });
+
         }
     }
 
