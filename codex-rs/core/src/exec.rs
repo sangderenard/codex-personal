@@ -3,8 +3,7 @@ use std::os::unix::process::ExitStatusExt;
 
 use std::collections::HashMap;
 use std::io;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
 use std::process::Stdio;
 use std::sync::Arc;
@@ -19,8 +18,7 @@ use tokio::process::Child;
 use tokio::process::Command;
 use tokio::sync::Notify;
 
-use crate::command_translation::{CommandTranslator,
-    DEFAULT_TRANSLATOR, OPERATING_SHELL};
+use translation::{DEFAULT_TRANSLATOR, OPERATING_SHELL, initialize};
 
 use crate::error::CodexErr;
 use crate::error::Result;
@@ -34,6 +32,7 @@ const MAX_STREAM_OUTPUT: usize = 10 * 1024;
 const MAX_STREAM_OUTPUT_LINES: usize = 256;
 
 const DEFAULT_TIMEOUT_MS: u64 = 10_000;
+
 
 // Hardcode these since it does not seem worth including the libc crate just
 // for these.
@@ -100,10 +99,26 @@ pub async fn process_exec_tool_call(
     ctrl_c: Arc<Notify>,
     sandbox_policy: &SandboxPolicy,
     codex_linux_sandbox_exe: &Option<PathBuf>,
+    threat_info: &str,
+    threat_weights: &[f64],
 ) -> Result<ExecToolCallOutput> {
     let start = Instant::now();
 
-    let translated_command = DEFAULT_TRANSLATOR.translate_command(&params.command[0], OPERATING_SHELL);
+    if DEFAULT_TRANSLATOR.get().is_none() {
+        initialize(std::env::consts::OS);
+    }
+    let translated_command = {
+        let mut guard = DEFAULT_TRANSLATOR
+            .get()
+            .expect("translator initialized")
+            .lock()
+            .expect("lock translator");
+        let shell = OPERATING_SHELL
+            .get()
+            .map(String::as_str)
+            .unwrap_or(std::env::consts::OS);
+        guard.translate_command(&params.command[0], shell, threat_info, threat_weights)
+    };
     println!("{}", translated_command); // Log the translation
 
     let mut sandbox_type = sandbox_type;

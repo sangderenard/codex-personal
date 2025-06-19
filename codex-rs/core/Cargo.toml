@@ -19,6 +19,7 @@ codex-apply-patch = { path = "../apply-patch" }
 codex-login = { path = "../login" }
 codex-mcp-client = { path = "../mcp-client" }
 codex-execpolicy = { path = "../execpolicy" }
+translation = { path = "../translation" }
 dirs = "6"
 env-flags = "0.1.1"
 eventsource-stream = "0.2.3"

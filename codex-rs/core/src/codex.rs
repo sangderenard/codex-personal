@@ -87,7 +87,6 @@ use crate::safety::assess_command_safety;
 use crate::safety::assess_patch_safety;
 use crate::user_notification::UserNotification;
 use crate::util::backoff;
-use crate::command_translation::CommandTranslator;
 
 /// The high-level interface to the Codex system.
 /// It operates as a queue pair where you send submissions and receive events.
@@ -1360,6 +1359,8 @@ async fn handle_container_exec_with_params(
         sess.ctrl_c.clone(),
         &sess.sandbox_policy,
         &sess.codex_linux_sandbox_exe,
+        "N/A",
+        &[],
     )
     .await;
 
@@ -1465,6 +1466,8 @@ async fn handle_sanbox_error(
                 sess.ctrl_c.clone(),
                 &sess.sandbox_policy,
                 &sess.codex_linux_sandbox_exe,
+                "N/A",
+                &[],
             )
             .await;
 
