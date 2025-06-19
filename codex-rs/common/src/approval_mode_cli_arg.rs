@@ -4,6 +4,7 @@
 use clap::ArgAction;
 use clap::Parser;
 use clap::ValueEnum;
+use clap::builder::{ValueParser, ValueParserFactory};
 
 use codex_core::config::parse_sandbox_permission_with_base_path;
 use codex_core::protocol::AskForApproval;
@@ -70,4 +71,24 @@ pub struct SandboxPermissionOption {
 fn parse_sandbox_permission(raw: &str) -> std::io::Result<SandboxPermission> {
     let base_path = std::env::current_dir()?;
     parse_sandbox_permission_with_base_path(raw, base_path)
+}
+
+impl std::str::FromStr for SandboxPermissionOption {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(SandboxPermissionOption {
+            permissions: Some(vec![parse_sandbox_permission(s)?]),
+        })
+    }
+}
+
+impl ValueParserFactory for SandboxPermissionOption {
+    fn value_parser() -> ValueParser {
+        ValueParser::new(|s: &str| {
+            Ok(SandboxPermissionOption {
+                permissions: Some(vec![parse_sandbox_permission(s)?]),
+            })
+        })
+    }
 }

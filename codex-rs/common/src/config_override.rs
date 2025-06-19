@@ -7,6 +7,7 @@
 //! key/value pairs as well as to apply them onto a mutable
 //! `serde_json::Value` representing the configuration tree.
 
+use clap::builder::{ValueParser, ValueParserFactory};
 use clap::ArgAction;
 use clap::Parser;
 use serde::de::Error as SerdeError;
@@ -135,6 +136,26 @@ fn parse_toml_value(raw: &str) -> Result<Value, toml::de::Error> {
         .get("_x_")
         .cloned()
         .ok_or_else(|| SerdeError::custom("missing sentinel key"))
+}
+
+impl std::str::FromStr for CliConfigOverrides {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(CliConfigOverrides {
+            raw_overrides: vec![s.to_string()],
+        })
+    }
+}
+
+impl ValueParserFactory for CliConfigOverrides {
+    fn value_parser() -> ValueParser {
+        ValueParser::new(|s: &str| {
+            Ok(CliConfigOverrides {
+                raw_overrides: vec![s.to_string()],
+            })
+        })
+    }
 }
 
 #[cfg(all(test, feature = "cli"))]
