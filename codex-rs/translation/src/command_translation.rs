@@ -1,17 +1,11 @@
 use std::collections::HashMap;
 use std::process::Command;
-use codex_execpolicy::threat_state::{
-    ThreatMatrix,
-    ThreatDeliverable,
-};
 const MAX_TRANSLATION_WARNINGS: usize = 3; // Define constant for max warnings
 
 #[derive(Debug, Clone)]
 pub struct CommandTranslator {
     translations: HashMap<String, CommandTranslation>,
     max_warnings: usize,
-    threat_matrix: ThreatMatrix,
-    threat_deliverable: ThreatDeliverable,
 }
 
 #[derive(Debug, Clone)]
@@ -21,7 +15,7 @@ pub struct CommandTranslation {
 }
 
 impl CommandTranslator {
-    pub fn new(threat_matrix: ThreatMatrix, threat_deliverable: ThreatDeliverable) -> Self {
+    pub fn new() -> Self {
         Self {
             translations: HashMap::new(),
             max_warnings: MAX_TRANSLATION_WARNINGS,
@@ -49,14 +43,8 @@ impl CommandTranslator {
         threat_info: &str,
         threat_weights: &[f64],
     ) -> String {
-        let threat_statement = format!(
-            "Threat Information: {}",
-            threat_info.unwrap()
-        );
-
-        let weights_statement = if let Some(weights) = threat_weights {
-            format!("Categorical Threat Weights: {:?}", weights)
-        };
+        let threat_statement = format!("Threat Information: {}", threat_info);
+        let weights_statement = format!("Categorical Threat Weights: {:?}", threat_weights);
 
         if let Some(translation) = self.translations.get_mut(command) {
             let translated_command = translation
