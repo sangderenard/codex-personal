@@ -27,6 +27,12 @@ use crate::protocol::SandboxPolicy;
 use crate::safety::detect_windows_shell;
 
 use crate::config_types::ShellEnvironmentPolicy;
+pub use crate::black_box::black_box::spawn_command_under_black_box;
+pub use crate::black_box::black_box::{
+    CODEX_BLACK_BOX_SANDBOX_STATE,
+    enable_black_box_sandbox,
+    disable_black_box_sandbox,
+};
 
 
 // Maximum we send for each stream, which is either:
@@ -62,7 +68,6 @@ const MACOS_PATH_TO_SEATBELT_EXECUTABLE: &str = "/usr/bin/sandbox-exec";
 pub const CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR: &str = "CODEX_SANDBOX_NETWORK_DISABLED";
 
 /// Integer constants representing sandbox states.
-pub const CODEX_BLACK_BOX_SANDBOX_STATE: i32 = 0;
 pub const CODEX_API_SANDBOX_STATE: i32 = 1;
 pub const CODEX_WINDOWS_CMD_SANDBOX_STATE: i32 = 2;
 pub const CODEX_WINDOWS_PS_SANDBOX_STATE: i32 = 3;
@@ -71,7 +76,7 @@ pub const CODEX_MACOS_SANDBOX_STATE: i32 = 5;
 
 /// Global variables to toggle API and Black Box states.
 static mut API_SANDBOX_ENABLED: bool = false;
-static mut BLACK_BOX_SANDBOX_ENABLED: bool = false;
+use crate::black_box::black_box::BLACK_BOX_SANDBOX_ENABLED;
 
 /// Function to determine the active sandbox state.
 pub fn determine_sandbox_state() -> i32 {
@@ -110,17 +115,6 @@ pub fn disable_api_sandbox() {
     }
 }
 
-pub fn enable_black_box_sandbox() {
-    unsafe {
-        BLACK_BOX_SANDBOX_ENABLED = true;
-    }
-}
-
-pub fn disable_black_box_sandbox() {
-    unsafe {
-        BLACK_BOX_SANDBOX_ENABLED = false;
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct ExecParams {
@@ -889,13 +883,3 @@ fn synthetic_exit_status(code: i32) -> ExitStatus {
     std::process::ExitStatus::from_raw(code.try_into().unwrap())
 }
 
-pub async fn spawn_command_under_black_box(
-    command: Vec<String>,
-    sandbox_policy: SandboxPolicy,
-    cwd: PathBuf,
-    stdio_policy: StdioPolicy,
-    env: ShellEnvironmentPolicy,
-) -> anyhow::Result<()> {
-    // Implementation for spawning a command under BlackBox
-    Ok(())
-}

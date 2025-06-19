@@ -10,7 +10,7 @@ use codex_core::exec::spawn_command_under_seatbelt;
 use codex_core::exec::spawn_command_under_win64_cmd;
 use codex_core::exec::spawn_command_under_win64_ps;
 use codex_core::black_box::black_box::spawn_command_under_black_box;
-use codex_core::black_box::BlackBoxCommand;
+use crate::BlackBoxCommand;
 use codex_core::exec::spawn_command_under_api;
 use codex_core::exec_env::create_env;
 use codex_core::protocol::SandboxPolicy;
@@ -182,10 +182,10 @@ async fn run_command_under_sandbox(
         SandboxType::BlackBox => {
             spawn_command_under_black_box(
                 command,
-                &config.sandbox_policy,
+                config.sandbox_policy.clone(),
                 cwd,
                 stdio_policy,
-                env,
+                config.shell_environment_policy.clone(),
             )
             .await?
         }
@@ -227,7 +227,7 @@ async fn run_command_under_sandbox(
 
 pub fn create_sandbox_policy(full_auto: bool, sandbox: SandboxPermissionOption) -> SandboxPolicy {
     if full_auto {
-        SandboxPolicy::new_read_only_policy_with_writable_roots()
+        SandboxPolicy::new_read_only_policy_with_writable_roots(&[])
     } else {
         match sandbox.permissions.map(Into::into) {
             Some(sandbox_policy) => sandbox_policy,
