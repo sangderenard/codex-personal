@@ -474,32 +474,48 @@ pub async fn spawn_command_under_api(
     env: HashMap<String, String>,
 ) -> std::io::Result<Child> {
     use tokio::net::TcpListener;
+    use tokio::io::AsyncReadExt;
+    use tokio::time::{timeout, sleep};
 
     let listener = TcpListener::bind("127.0.0.1:0").await?; // Bind to an ephemeral port
     let local_addr = listener.local_addr()?; // Get the bound address
 
     tracing::info!("API listener bound to: {}", local_addr);
 
+    const HANDSHAKE_TRIES: usize = 3;
+    const HANDSHAKE_RETRY: Duration = Duration::from_secs(1);
+
     let handle = tokio::spawn(async move {
-        match listener.accept().await {
-            Ok((stream, _)) => {
-                tracing::info!("Connection received from: {}", stream.peer_addr()?);
-                let mut buffer = vec![0; 1024];
-                let _ = stream.readable().await;
-                match stream.try_read(&mut buffer) {
-                    Ok(bytes_read) => {
-                        tracing::info!("Received {} bytes", bytes_read);
-                        Ok(buffer[..bytes_read].to_vec())
-                    }
-                    Err(e) => {
-                        tracing::error!("Error reading from stream: {}", e);
-                        Err(e)
-                    }
-                }
+        let mut attempts = 0usize;
+        let mut compiled = Vec::new();
+        loop {
+            if attempts >= HANDSHAKE_TRIES {
+                tracing::warn!("No handshake could be completed");
+                return Ok(None);
             }
-            Err(e) => {
-                tracing::error!("Error accepting connection: {}", e);
-                Err(e)
+
+            attempts += 1;
+            match timeout(HANDSHAKE_RETRY, listener.accept()).await {
+                Ok(Ok((mut stream, _))) => {
+                    tracing::info!("Connection received from: {}", stream.peer_addr()?);
+                    let mut buf = [0u8; 1024];
+                    loop {
+                        let n = stream.read(&mut buf).await?;
+                        if n == 0 {
+                            break;
+                        }
+                        compiled.extend_from_slice(&buf[..n]);
+                    }
+                    return Ok(Some(compiled));
+                }
+                Ok(Err(e)) => {
+                    tracing::error!("Error accepting connection: {}", e);
+                    return Err(e);
+                }
+                Err(_) => {
+                    tracing::info!("Waiting for API handshake attempt {}", attempts);
+                    sleep(HANDSHAKE_RETRY).await;
+                }
             }
         }
     });
