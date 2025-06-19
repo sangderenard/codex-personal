@@ -126,7 +126,8 @@ async fn cli_main(codex_linux_sandbox_exe: Option<PathBuf>) -> anyhow::Result<()
             }
             DebugCommand::BlackBox(mut black_cli) => {
                 prepend_config_flags(&mut black_cli.config_overrides, cli.config_overrides);
-                codex_cli::debug_sandbox::run_command_black_box(black_cli).await?;
+                codex_cli::debug_sandbox::run_command_under_black_box(black_cli).await?;
+                //I don't know where to source the proper arguments
             }
         },
     }
