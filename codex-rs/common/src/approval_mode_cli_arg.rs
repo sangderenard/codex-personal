@@ -78,16 +78,18 @@ impl std::str::FromStr for SandboxPermissionOption {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(SandboxPermissionOption {
-            permissions: Some(vec![parse_sandbox_permission(s)?]),
+            permissions: Some(vec![parse_sandbox_permission(s).map_err(|e| e.to_string())?]),
         })
     }
 }
 
 impl ValueParserFactory for SandboxPermissionOption {
-    fn value_parser() -> ValueParser {
-        ValueParser::new(|s: &str| {
+    type Parser = ValueParser;
+
+    fn value_parser() -> Self::Parser {
+        ValueParser::new(|s: &str| -> Result<SandboxPermissionOption, String> {
             Ok(SandboxPermissionOption {
-                permissions: Some(vec![parse_sandbox_permission(s)?]),
+                permissions: Some(vec![parse_sandbox_permission(s).map_err(|e| e.to_string())?]),
             })
         })
     }
