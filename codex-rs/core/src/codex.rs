@@ -87,6 +87,9 @@ use crate::safety::assess_command_safety;
 use crate::safety::assess_patch_safety;
 use crate::user_notification::UserNotification;
 use crate::util::backoff;
+use codex_execpolicy::policy_watcher::PolicyWatcher;
+use codex_execpolicy::threat_state::DEFAULT_CATEGORY_WEIGHTS;
+use codex_execpolicy::DEFAULT_WATCHER;
 
 /// The high-level interface to the Codex system.
 /// It operates as a queue pair where you send submissions and receive events.
@@ -103,6 +106,14 @@ impl Codex {
     pub async fn spawn(config: Config, ctrl_c: Arc<Notify>) -> CodexResult<(Codex, String)> {
         let (tx_sub, rx_sub) = async_channel::bounded(64);
         let (tx_event, rx_event) = async_channel::bounded(64);
+
+        if DEFAULT_WATCHER.get().is_none() {
+            if let Ok(path) = std::env::var("CODEX_POLICY_PATH") {
+                if let Ok(watcher) = PolicyWatcher::new(PathBuf::from(path)) {
+                    let _ = DEFAULT_WATCHER.set(watcher);
+                }
+            }
+        }
 
         let instructions = get_user_instructions(&config).await;
         let configure_session = Op::ConfigureSession {
@@ -198,6 +209,17 @@ impl Session {
         path.as_ref()
             .map(PathBuf::from)
             .map_or_else(|| self.cwd.clone(), |p| self.cwd.join(p))
+    }
+
+    fn current_threat_data(&self, params: &ExecParams) -> (String, Vec<f64>) {
+        if let Some(watcher) = DEFAULT_WATCHER.get() {
+            let matrix = watcher.process_threat_matrix(vec![params.command.join(" ")]);
+            let level = watcher.evaluate_matrix(&matrix);
+            let info = format!("Current Threat Level: {:?}", level);
+            (info, DEFAULT_CATEGORY_WEIGHTS.to_vec())
+        } else {
+            ("N/A".to_string(), Vec::new())
+        }
     }
 }
 
@@ -1353,14 +1375,15 @@ async fn handle_container_exec_with_params(
     sess.notify_exec_command_begin(&sub_id, &call_id, &params)
         .await;
 
+    let (threat_info, threat_weights) = sess.current_threat_data(&params);
     let output_result = process_exec_tool_call(
         params.clone(),
         sandbox_type,
         sess.ctrl_c.clone(),
         &sess.sandbox_policy,
         &sess.codex_linux_sandbox_exe,
-        "N/A",
-        &[],
+        &threat_info,
+        &threat_weights,
     )
     .await;
 
@@ -1460,14 +1483,15 @@ async fn handle_sanbox_error(
 
             // This is an escalated retry; the policy will not be
             // examined and the sandbox has been set to `None`.
+            let (threat_info, threat_weights) = sess.current_threat_data(&params);
             let retry_output_result = process_exec_tool_call(
                 params,
                 SandboxType::None,
                 sess.ctrl_c.clone(),
                 &sess.sandbox_policy,
                 &sess.codex_linux_sandbox_exe,
-                "N/A",
-                &[],
+                &threat_info,
+                &threat_weights,
             )
             .await;
 
