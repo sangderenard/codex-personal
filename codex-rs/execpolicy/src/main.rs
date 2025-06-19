@@ -114,6 +114,7 @@ lazy_static! {
     static ref REQUEST_COUNT: Mutex<usize> = Mutex::new(0);
 }
 
+#[allow(dead_code)]
 enum RateLimitMode {
     Tokens,
     Requests,

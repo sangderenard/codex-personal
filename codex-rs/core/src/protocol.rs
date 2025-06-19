@@ -16,7 +16,6 @@ use crate::config_types::ReasoningEffort as ReasoningEffortConfig;
 use crate::config_types::ReasoningSummary as ReasoningSummaryConfig;
 use codex_execpolicy::threat_state::{ThreatMatrix, ThreatLevel};
 
-use codex_execpolicy::policy_watcher::PolicyWatcher;
 use crate::message_history::HistoryEntry;
 use crate::model_provider_info::ModelProviderInfo;
 

@@ -244,7 +244,7 @@ pub fn risk_vector_score(vec: &RiskVector) -> f64 {
 /// Historical tree storage with a moving window.
 pub struct RiskHistory {
     window: VecDeque<RiskTree>,
-    decay_factor: f64,
+    _decay_factor: f64,
     max_size: usize,
 }
 
@@ -255,7 +255,7 @@ lazy_static! {
 
 impl RiskHistory {
     pub fn new(max_size: usize, decay_factor: f64) -> Self {
-        Self { window: VecDeque::new(), decay_factor, max_size }
+        Self { window: VecDeque::new(), _decay_factor: decay_factor, max_size }
     }
 
     /// Add a new risk tree to the historical window.
