@@ -87,6 +87,7 @@ use crate::safety::assess_command_safety;
 use crate::safety::assess_patch_safety;
 use crate::user_notification::UserNotification;
 use crate::util::backoff;
+use crate::command_translation::CommandTranslator;
 
 /// The high-level interface to the Codex system.
 /// It operates as a queue pair where you send submissions and receive events.

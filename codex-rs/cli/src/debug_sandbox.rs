@@ -9,6 +9,8 @@ use codex_core::exec::spawn_command_under_linux_sandbox;
 use codex_core::exec::spawn_command_under_seatbelt;
 use codex_core::exec::spawn_command_under_win64_cmd;
 use codex_core::exec::spawn_command_under_win64_ps;
+use codex_core::exec::spawn_command_under_black_box;
+use codex_core::exec::spawn_command_under_api;
 use codex_core::exec_env::create_env;
 use codex_core::protocol::SandboxPolicy;
 use codex_core::config_types::ShellEnvironmentPolicy;
@@ -60,18 +62,6 @@ pub async fn run_command_under_landlock(
     .await
 }
 
-pub async fn run_command_black_box(command: BlackBoxCommand) -> anyhow::Result<()> {
-    let BlackBoxCommand { command, .. } = command;
-    run_command_under_sandbox(
-        false,
-        SandboxPermissionOption { permissions: None },
-        command,
-        CliConfigOverrides { raw_overrides: vec![] },
-        None,
-        SandboxType::BlackBox,
-    )
-    .await
-}
 
 enum SandboxType {
     Seatbelt,
@@ -79,6 +69,7 @@ enum SandboxType {
     BlackBox,
     Win64Cmd,
     Win64Ps,
+    API,
 }
 
 async fn run_command_under_sandbox(
@@ -103,11 +94,6 @@ async fn run_command_under_sandbox(
     )?;
     let stdio_policy = StdioPolicy::Inherit;
     let env = create_env(&config.shell_environment_policy);
-
-    if matches!(sandbox_type, SandboxType::BlackBox) {
-        println!("Black box sandbox approves: {}", command.join(" "));
-        return Ok(());
-    }
 
     let mut child = match sandbox_type {
         SandboxType::Seatbelt => {
@@ -149,6 +135,10 @@ async fn run_command_under_sandbox(
             )
             .await?
         }
+        SandboxType::API => {
+            // Placeholder for future API sandbox implementation
+            todo!("Handle API sandbox type")
+        }
         SandboxType::BlackBox => {
             todo!("Handle BlackBox sandbox type")
         }
@@ -159,17 +149,12 @@ async fn run_command_under_sandbox(
 }
 
 pub fn create_sandbox_policy(full_auto: bool, sandbox: SandboxPermissionOption) -> SandboxPolicy {
-    if std::env::var("DEV_PLUG").is_ok() && std::env::var("FULL_CONTROL").is_ok() {
-        // Conspicuous alteration: bypass all checks and return full jailbreak
-        return SandboxPolicy::full_jailbreak();
-    }
-
     if full_auto {
-        SandboxPolicy::full_jailbreak()
+        SandboxPolicy::new_read_only_policy_with_writable_roots()
     } else {
         match sandbox.permissions.map(Into::into) {
             Some(sandbox_policy) => sandbox_policy,
-            None => SandboxPolicy::full_jailbreak(),
+            None => SandboxPolicy::new_read_only_policy(),
         }
     }
 }
@@ -216,11 +201,44 @@ pub async fn run_command_under_win64_ps(
     handle_exit_status(status);
 }
 
-// ---------------------------------------------------------------------------
-// IMPORTANT: Future Work Stub
-// ---------------------------------------------------------------------------
-// The `run_command_black_box` function currently approves commands without
-// executing them. This is a placeholder for future development where we will
-// implement a bidirectional API for controlling Python execution directly
-// through LLM-interpreted programmatic actions.
-// ---------------------------------------------------------------------------
+pub async fn run_command_under_black_box(
+    command: Vec<String>,
+    sandbox_policy: SandboxPolicy,
+) -> anyhow::Result<()> {
+    let cwd = std::env::current_dir()?;
+    let env = create_env(&ShellEnvironmentPolicy::default());
+    let stdio_policy = StdioPolicy::Inherit;
+
+    let mut child = spawn_command_under_black_box(
+        command,
+        &sandbox_policy,
+        cwd,
+        stdio_policy,
+        env,
+    )
+    .await?;
+
+    let status = child.wait().await?;
+    handle_exit_status(status);
+}
+
+pub async fn run_command_under_api(
+    command: Vec<String>,
+    sandbox_policy: SandboxPolicy,
+) -> anyhow::Result<()> {
+    let cwd = std::env::current_dir()?;
+    let env = create_env(&ShellEnvironmentPolicy::default());
+    let stdio_policy = StdioPolicy::Inherit;
+
+    let mut child = spawn_command_under_api(
+        command,
+        &sandbox_policy,
+        cwd,
+        stdio_policy,
+        env,
+    )
+    .await?;
+
+    let status = child.wait().await?;
+    handle_exit_status(status);
+}

@@ -14,6 +14,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tempfile::NamedTempFile;
 use tokio::sync::Notify;
+use codex_core::exec::CommandTranslator;
 
 // At least on GitHub CI, the arm64 tests appear to need longer timeouts.
 
@@ -50,12 +51,14 @@ async fn run_cmd(cmd: &[&str], writable_roots: &[PathBuf], timeout_ms: u64) {
     let sandbox_program = env!("CARGO_BIN_EXE_codex-linux-sandbox");
     let codex_linux_sandbox_exe = Some(PathBuf::from(sandbox_program));
     let ctrl_c = Arc::new(Notify::new());
+    let mut translator = CommandTranslator::new(3); // Initialize translator
     let res = process_exec_tool_call(
         params,
         SandboxType::LinuxSeccomp,
         ctrl_c,
         &sandbox_policy,
         &codex_linux_sandbox_exe,
+        &mut translator, // Pass translator
     )
     .await
     .unwrap();

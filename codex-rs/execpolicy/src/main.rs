@@ -6,7 +6,6 @@ use codex_execpolicy::MatchedExec;
 use codex_execpolicy::Policy;
 use codex_execpolicy::PolicyParser;
 use codex_execpolicy::ValidExec;
-use codex_execpolicy::get_default_policy;
 use serde::Deserialize;
 use serde::Serialize;
 use serde::de;
@@ -81,7 +80,7 @@ fn main() -> Result<()> {
             let parser = PolicyParser::new(&policy_source, &unparsed_policy);
             parser.parse()
         }
-        None => get_default_policy(),
+        None => panic!("No policy provided. Program cannot proceed without a policy file."),
     };
     let policy = policy.map_err(|err| err.into_anyhow())?;
 

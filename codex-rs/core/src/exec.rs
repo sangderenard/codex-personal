@@ -19,6 +19,9 @@ use tokio::process::Child;
 use tokio::process::Command;
 use tokio::sync::Notify;
 
+use crate::command_translation::{CommandTranslator,
+    DEFAULT_TRANSLATOR, OPERATING_SHELL};
+
 use crate::error::CodexErr;
 use crate::error::Result;
 use crate::error::SandboxErr;
@@ -99,6 +102,9 @@ pub async fn process_exec_tool_call(
     codex_linux_sandbox_exe: &Option<PathBuf>,
 ) -> Result<ExecToolCallOutput> {
     let start = Instant::now();
+
+    let translated_command = DEFAULT_TRANSLATOR.translate_command(&params.command[0], OPERATING_SHELL);
+    println!("{}", translated_command); // Log the translation
 
     let mut sandbox_type = sandbox_type;
     if std::env::var(CODEX_DUMMY_SANDBOX_ENV_VAR).is_ok() {

@@ -4676,6 +4676,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "translation"
+version = "0.1.0"
+dependencies = [
+ "codex-execpolicy",
+ "once_cell",
+]
+
+[[package]]
 name = "tree-sitter"
 version = "0.25.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"

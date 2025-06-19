@@ -28,7 +28,6 @@ pub mod user_notification;
 pub mod util;
 /// global feature flags and defaults
 pub mod flags;
-
 /// profiles of per-organization/OpenAI config
 pub mod config_profile;
 
