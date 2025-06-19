@@ -37,7 +37,7 @@ impl From<ApprovalModeCliArg> for AskForApproval {
     }
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 pub struct SandboxPermissionOption {
     /// Specify this flag multiple times to specify the full set of permissions
     /// to grant to Codex.

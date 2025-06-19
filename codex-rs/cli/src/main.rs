@@ -1,7 +1,7 @@
 use clap::Parser;
 use codex_cli::LandlockCommand;
 use codex_cli::SeatbeltCommand;
-use black_box::BlackBoxCommand;
+use codex_cli::BlackBoxCommand;
 use codex_cli::login::run_login_with_chatgpt;
 use codex_cli::proto;
 use codex_common::CliConfigOverrides;
