@@ -105,6 +105,7 @@ pub async fn run_command_under_api(
     .await
 }
 
+#[allow(dead_code)]
 enum SandboxType {
     Seatbelt,
     Landlock,
@@ -210,14 +211,17 @@ async fn run_command_under_sandbox(
             .await?
         }
         SandboxType::Api => {
-            spawn_command_under_api(
+            let output = spawn_command_under_api(
                 command,
                 &config.sandbox_policy,
                 cwd,
                 stdio_policy,
                 env,
+                None,
             )
-            .await?
+            .await?;
+            println!("{}", String::from_utf8_lossy(&output.stdout));
+            handle_exit_status(output.exit_status);
         }
     };
 

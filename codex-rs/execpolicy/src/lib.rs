@@ -42,7 +42,6 @@ pub use valid_exec::MatchedOpt;
 pub use valid_exec::ValidExec;
 
 use once_cell::sync::OnceCell;
-use std::path::PathBuf;
 
 
 pub static DEFAULT_WATCHER: OnceCell<PolicyWatcher> = OnceCell::new();

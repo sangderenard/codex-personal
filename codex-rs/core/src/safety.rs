@@ -65,10 +65,10 @@ pub fn assess_patch_safety(
 }
 
 pub fn assess_command_safety(
-    command: &[String],
+    _command: &[String],
     approval_policy: AskForApproval,
     sandbox_policy: &SandboxPolicy,
-    approved: &HashSet<Vec<String>>,
+    _approved: &HashSet<Vec<String>>,
 ) -> SafetyCheck {
     let approve_without_sandbox = || SafetyCheck::AutoApprove {
         sandbox_type: SandboxType::None,
