@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::env;
 use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
@@ -7,7 +8,7 @@ use codex_apply_patch::ApplyPatchAction;
 use codex_apply_patch::ApplyPatchFileChange;
 
 use crate::exec::SandboxType;
-use crate::is_safe_command::is_known_safe_command;
+
 use crate::protocol::AskForApproval;
 use crate::protocol::SandboxPolicy;
 
@@ -72,16 +73,7 @@ pub fn assess_command_safety(
     let approve_without_sandbox = || SafetyCheck::AutoApprove {
         sandbox_type: SandboxType::None,
     };
-
-    // Previously approved or allow-listed commands
-    // All approval modes allow these commands to continue without sandboxing
-    if is_known_safe_command(command) || approved.contains(command) {
-        // TODO(ragona): I think we should consider running even these inside the sandbox, but it's
-        // a change in behavior so I'm keeping it at parity with upstream for now.
-        return approve_without_sandbox();
-    }
-
-    // Command was not known-safe or allow-listed
+    
     if sandbox_policy.is_unrestricted() {
         approve_without_sandbox()
     } else {
@@ -106,13 +98,23 @@ pub fn assess_command_safety(
 pub fn get_platform_sandbox() -> Option<SandboxType> {
     if std::env::var(crate::exec::CODEX_DUMMY_SANDBOX_ENV_VAR).is_ok() {
         return Some(SandboxType::BlackBox);
+    } else if( std::env::var(crate::exec::CODEX_API_SANDBOX_ENV_VAR).is_ok() ) {
+        return Some(SandboxType::Api);
     }
+
     if cfg!(target_os = "macos") {
         Some(SandboxType::MacosSeatbelt)
     } else if cfg!(target_os = "linux") {
         Some(SandboxType::LinuxSeccomp)
+    } else if cfg!(target_os = "windows") {
+        match detect_windows_shell().as_str() {
+            "powershell" => Some(SandboxType::Win64Ps),
+            "cmd" => Some(SandboxType::Win64Cmd),
+            "bash for windows" | "wsl" => Some(SandboxType::Landlock,
+            _ => panic!("Unsupported shell for sandboxing"),
+        }
     } else {
-        None
+        panic!("Unsupported platform for sandboxing");
     }
 }
 
@@ -188,6 +190,24 @@ fn is_write_patch_constrained_to_writable_paths(
     }
 
     true
+}
+
+pub fn detect_windows_shell() -> String {
+    let comspec = env::var("COMSPEC").unwrap_or_default();
+    if comspec.contains("powershell") {
+        "powershell".to_string()
+    } else if comspec.contains("cmd") {
+        "cmd".to_string()
+    } else {
+        let shell = env::var("SHELL").unwrap_or_default();
+        if shell.contains("bash") {
+            "bash for windows".to_string()
+        } else if shell.contains("wsl") {
+            "wsl".to_string()
+        } else {
+            "unknown shell".to_string()
+        }
+    }
 }
 
 #[cfg(test)]
