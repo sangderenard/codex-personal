@@ -9,10 +9,10 @@ use crate::exec::StdioPolicy;
 
 use anyhow::Result;
 pub fn black_box_shell_function(
-    command: Vec<String>,
-    cwd: PathBuf,
-    env: HashMap<String, String>,
-    stdio_policy: StdioPolicy,
+    _command: Vec<String>,
+    _cwd: PathBuf,
+    _env: HashMap<String, String>,
+    _stdio_policy: StdioPolicy,
 ) -> Result<()> {
     // Implementation for the shell function in the black_box module
     Ok(())

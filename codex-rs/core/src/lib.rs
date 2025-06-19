@@ -3,6 +3,7 @@ pub mod exec_env;
 pub mod config_types;
 pub mod config;
 pub mod protocol;
+pub mod api;
 // Add other module declarations if needed, e.g.:
 // pub mod codex;
 // pub mod another_module;

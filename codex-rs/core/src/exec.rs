@@ -26,7 +26,7 @@ use crate::error::SandboxErr;
 use crate::protocol::SandboxPolicy;
 use crate::safety::detect_windows_shell;
 
-use crate::config_types::ShellEnvironmentPolicy;
+use crate::api::{accept_with_retries, send_payload};
 pub use crate::black_box::black_box::spawn_command_under_black_box;
 pub use crate::black_box::black_box::{
     CODEX_BLACK_BOX_SANDBOX_STATE,
@@ -48,6 +48,11 @@ const DEFAULT_TIMEOUT_MS: u64 = 10_000;
 // for these.
 const SIGKILL_CODE: i32 = 9;
 const TIMEOUT_CODE: i32 = 64;
+
+/// Prime factors used to communicate API sandbox failure states.
+pub const API_HANDSHAKE_FAILURE: i32 = 2;
+pub const API_PAYLOAD_FAILURE: i32 = 3;
+pub const API_SPAWN_FAILURE: i32 = 5;
 
 const MACOS_SEATBELT_BASE_POLICY: &str = include_str!("seatbelt_base_policy.sbpl");
 
@@ -275,16 +280,15 @@ pub async fn process_exec_tool_call(
                 env,
             } = params;
 
-            let child = spawn_command_under_api(
+            spawn_command_under_api(
                 command,
                 sandbox_policy,
                 cwd,
                 StdioPolicy::RedirectForShellTool,
                 env,
+                timeout_ms,
             )
-            .await?;
-
-            consume_truncated_output(child, ctrl_c, timeout_ms).await
+            .await
         }
     };
     let duration = start.elapsed();
@@ -385,22 +389,22 @@ where
 
 /// Windows CMD shell sandbox.
 pub async fn spawn_command_under_win64_cmd(
-    command: Vec<String>,
-    sandbox_policy: &SandboxPolicy,
-    cwd: PathBuf,
-    stdio_policy: StdioPolicy,
-    env: HashMap<String, String>,
+    _command: Vec<String>,
+    _sandbox_policy: &SandboxPolicy,
+    _cwd: PathBuf,
+    _stdio_policy: StdioPolicy,
+    _env: HashMap<String, String>,
 ) -> std::io::Result<Child> {
     #[cfg(windows)]
     {
         let batch_script_path = "path_to_batch_script.bat"; // Placeholder for batch script path
         let mut cmd = Command::new("cmd.exe");
         cmd.arg("/C").arg(batch_script_path);
-        cmd.args(command);
-        cmd.current_dir(cwd);
-        cmd.envs(env);
+        cmd.args(&_command);
+        cmd.current_dir(&_cwd);
+        cmd.envs(&_env);
 
-        match stdio_policy {
+        match _stdio_policy {
             StdioPolicy::RedirectForShellTool => {
                 cmd.stdin(Stdio::null());
                 cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -426,22 +430,22 @@ pub async fn spawn_command_under_win64_cmd(
 
 /// Windows PowerShell sandbox.
 pub async fn spawn_command_under_win64_ps(
-    command: Vec<String>,
-    sandbox_policy: &SandboxPolicy,
-    cwd: PathBuf,
-    stdio_policy: StdioPolicy,
-    env: HashMap<String, String>,
+    _command: Vec<String>,
+    _sandbox_policy: &SandboxPolicy,
+    _cwd: PathBuf,
+    _stdio_policy: StdioPolicy,
+    _env: HashMap<String, String>,
 ) -> std::io::Result<Child> {
     #[cfg(windows)]
     {
         let powershell_script_path = "path_to_powershell_script.ps1"; // Placeholder for PowerShell script path
         let mut cmd = Command::new("powershell.exe");
         cmd.arg("-File").arg(powershell_script_path);
-        cmd.args(command);
-        cmd.current_dir(cwd);
-        cmd.envs(env);
+        cmd.args(&_command);
+        cmd.current_dir(&_cwd);
+        cmd.envs(&_env);
 
-        match stdio_policy {
+        match _stdio_policy {
             StdioPolicy::RedirectForShellTool => {
                 cmd.stdin(Stdio::null());
                 cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -468,45 +472,70 @@ pub async fn spawn_command_under_win64_ps(
 /// API sandbox agnostic to platform.
 pub async fn spawn_command_under_api(
     command: Vec<String>,
-    sandbox_policy: &SandboxPolicy,
+    _sandbox_policy: &SandboxPolicy,
     cwd: PathBuf,
     stdio_policy: StdioPolicy,
     env: HashMap<String, String>,
-) -> std::io::Result<Child> {
+    timeout_ms: Option<u64>,
+) -> Result<RawExecToolCallOutput> {
     use tokio::net::TcpListener;
+    use tokio::sync::Notify;
 
     let listener = TcpListener::bind("127.0.0.1:0").await?; // Bind to an ephemeral port
     let local_addr = listener.local_addr()?; // Get the bound address
 
     tracing::info!("API listener bound to: {}", local_addr);
 
-    let handle = tokio::spawn(async move {
-        match listener.accept().await {
-            Ok((stream, _)) => {
-                tracing::info!("Connection received from: {}", stream.peer_addr()?);
-                let mut buffer = vec![0; 1024];
-                let _ = stream.readable().await;
-                match stream.try_read(&mut buffer) {
-                    Ok(bytes_read) => {
-                        tracing::info!("Received {} bytes", bytes_read);
-                        Ok(buffer[..bytes_read].to_vec())
-                    }
-                    Err(e) => {
-                        tracing::error!("Error reading from stream: {}", e);
-                        Err(e)
-                    }
-                }
-            }
-            Err(e) => {
-                tracing::error!("Error accepting connection: {}", e);
-                Err(e)
-            }
-        }
+    let mut status_factor = 1i32;
+
+    const HANDSHAKE_TRIES: usize = 3;
+    const HANDSHAKE_RETRY: Duration = Duration::from_secs(1);
+
+    let handshake_handle = tokio::spawn(async move {
+        accept_with_retries(listener, HANDSHAKE_TRIES, HANDSHAKE_RETRY).await
     });
 
-    // Spawn the command as usual
+    let command_line = command.join(" ");
+
+    if !is_interpreter(command.get(0).map(String::as_str).unwrap_or("")) {
+        let (handshake_message, stream_opt) = handshake_handle.await??;
+        if let Some(stream) = stream_opt {
+            let response = match send_payload(stream, command_line.as_bytes()).await {
+                Ok(resp) => String::from_utf8_lossy(&resp).to_string(),
+                Err(e) => {
+                    status_factor *= API_PAYLOAD_FAILURE;
+                    tracing::warn!("Failed to send payload: {}", e);
+                    String::new()
+                }
+            };
+            let mut output = handshake_message;
+            if !response.is_empty() {
+                output.push_str("\n");
+                output.push_str(&response);
+            } else {
+                output.push_str("\n");
+                output.push_str(&command_line);
+            }
+            let code = if status_factor == 1 { 0 } else { status_factor };
+            return Ok(RawExecToolCallOutput {
+                exit_status: synthetic_exit_status(code),
+                stdout: output.into_bytes(),
+                stderr: Vec::new(),
+            });
+        } else {
+            status_factor *= API_HANDSHAKE_FAILURE;
+            let output = format!("{}\n{}", handshake_message, command_line);
+            return Ok(RawExecToolCallOutput {
+                exit_status: synthetic_exit_status(status_factor),
+                stdout: output.into_bytes(),
+                stderr: Vec::new(),
+            });
+        }
+    }
+
     let mut cmd = Command::new(&command[0]);
     cmd.args(&command[1..]);
+
     cmd.current_dir(cwd);
     cmd.envs(env);
 
@@ -522,30 +551,55 @@ pub async fn spawn_command_under_api(
         }
     }
 
-    let child = cmd.spawn()?;
 
-    // Wait for the listener to complete or timeout
-    let timeout = tokio::time::sleep(Duration::from_secs(10));
-    tokio::select! {
-        result = handle => {
-            match result {
-                Ok(Ok(data)) => {
-                    tracing::info!("Data received: {:?}", data);
-                }
-                Ok(Err(e)) => {
-                    tracing::error!("Error during API communication: {}", e);
-                }
-                Err(e) => {
-                    tracing::error!("Error during API communication: {}", e);
-                }
-            }
+    let child = match cmd.spawn() {
+        Ok(child) => child,
+        Err(e) => {
+            status_factor *= API_SPAWN_FAILURE;
+            tracing::warn!("Failed to spawn command: {}", e);
+            return Ok(RawExecToolCallOutput {
+                exit_status: synthetic_exit_status(status_factor),
+                stdout: Vec::new(),
+                stderr: format!("Program not found: {}", command_line).into_bytes(),
+            });
         }
-        _ = timeout => {
-            tracing::warn!("API listener timed out");
-        }
+    };
+
+    let output_handle = {
+        let ctrl_c = Arc::new(Notify::new());
+        tokio::spawn(async move { consume_truncated_output(child, ctrl_c, timeout_ms).await })
+    };
+
+    let (handshake_message, _stream) = handshake_handle.await??;
+    if handshake_message == "No response on the API" {
+        status_factor *= API_HANDSHAKE_FAILURE;
     }
 
-    Ok(child)
+    let mut output = output_handle.await??;
+
+    if !handshake_message.is_empty() {
+        let mut combined = handshake_message.into_bytes();
+        combined.push(b'\n');
+        combined.extend_from_slice(&output.stdout);
+        output.stdout = combined;
+    }
+    if status_factor != 1 {
+        output.exit_status = synthetic_exit_status(status_factor);
+    }
+
+    Ok(output)
+}
+
+fn is_interpreter(program: &str) -> bool {
+    let name = program
+        .rsplit_once('/')
+        .map(|(_, n)| n)
+        .unwrap_or(program)
+        .to_ascii_lowercase();
+    matches!(
+        name.as_str(),
+        "sh" | "bash" | "zsh" | "cmd" | "powershell" | "pwsh" | "python" | "python3" | "node" | "perl"
+    )
 }
 
 /// Converts the sandbox policy into the CLI invocation for `codex-linux-sandbox`.
@@ -873,7 +927,7 @@ async fn read_capped<R: AsyncRead + Unpin>(
 #[cfg(unix)]
 fn synthetic_exit_status(code: i32) -> ExitStatus {
     use std::os::unix::process::ExitStatusExt;
-    std::process::ExitStatus::from_raw(code)
+    std::process::ExitStatus::from_raw((code as i32) << 8)
 }
 
 #[cfg(windows)]
