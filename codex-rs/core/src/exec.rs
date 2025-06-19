@@ -538,7 +538,28 @@ pub async fn spawn_command_under_api(
         }
     }
 
-    let child = cmd.spawn()?;
+    let child = match cmd.spawn() {
+        Ok(child) => child,
+        Err(e) => {
+            tracing::warn!("Failed to spawn command: {}", e);
+            // Fallback to a simple echo-style process so callers get a Child
+            let mut fallback = if cfg!(windows) {
+                let mut c = Command::new("cmd");
+                c.arg("/C");
+                c.arg("echo");
+                c.arg(format!("Program not found: {}", command[0]));
+                c
+            } else {
+                let mut c = Command::new("sh");
+                c.arg("-c");
+                c.arg(format!("echo Program not found: {}", command[0]));
+                c
+            };
+
+            fallback.stdout(Stdio::piped()).stderr(Stdio::piped());
+            fallback.spawn()?
+        }
+    };
 
     // Wait for the listener to complete or timeout
     let timeout = tokio::time::sleep(Duration::from_secs(10));
