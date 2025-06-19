@@ -27,6 +27,7 @@ use crate::protocol::SandboxPolicy;
 use crate::safety::detect_windows_shell;
 
 use crate::config_types::ShellEnvironmentPolicy;
+use crate::api::{accept_with_retries, send_payload};
 pub use crate::black_box::black_box::spawn_command_under_black_box;
 pub use crate::black_box::black_box::{
     CODEX_BLACK_BOX_SANDBOX_STATE,
@@ -275,16 +276,15 @@ pub async fn process_exec_tool_call(
                 env,
             } = params;
 
-            let child = spawn_command_under_api(
+            spawn_command_under_api(
                 command,
                 sandbox_policy,
                 cwd,
                 StdioPolicy::RedirectForShellTool,
                 env,
+                timeout_ms,
             )
-            .await?;
-
-            consume_truncated_output(child, ctrl_c, timeout_ms).await
+            .await
         }
     };
     let duration = start.elapsed();
@@ -472,41 +472,61 @@ pub async fn spawn_command_under_api(
     cwd: PathBuf,
     stdio_policy: StdioPolicy,
     env: HashMap<String, String>,
-) -> std::io::Result<Child> {
+    timeout_ms: Option<u64>,
+) -> Result<RawExecToolCallOutput> {
     use tokio::net::TcpListener;
+    use tokio::sync::Notify;
 
     let listener = TcpListener::bind("127.0.0.1:0").await?; // Bind to an ephemeral port
     let local_addr = listener.local_addr()?; // Get the bound address
 
     tracing::info!("API listener bound to: {}", local_addr);
 
-    let handle = tokio::spawn(async move {
-        match listener.accept().await {
-            Ok((stream, _)) => {
-                tracing::info!("Connection received from: {}", stream.peer_addr()?);
-                let mut buffer = vec![0; 1024];
-                let _ = stream.readable().await;
-                match stream.try_read(&mut buffer) {
-                    Ok(bytes_read) => {
-                        tracing::info!("Received {} bytes", bytes_read);
-                        Ok(buffer[..bytes_read].to_vec())
-                    }
-                    Err(e) => {
-                        tracing::error!("Error reading from stream: {}", e);
-                        Err(e)
-                    }
-                }
-            }
-            Err(e) => {
-                tracing::error!("Error accepting connection: {}", e);
-                Err(e)
-            }
-        }
+    const HANDSHAKE_TRIES: usize = 3;
+    const HANDSHAKE_RETRY: Duration = Duration::from_secs(1);
+
+    let handshake_handle = tokio::spawn(async move {
+        accept_with_retries(listener, HANDSHAKE_TRIES, HANDSHAKE_RETRY).await
     });
 
-    // Spawn the command as usual
+    let command_line = command.join(" ");
+
+    if !is_interpreter(command.get(0).map(String::as_str).unwrap_or("")) {
+        let (handshake_message, stream_opt) = handshake_handle.await??;
+        if let Some(stream) = stream_opt {
+            let response = match send_payload(stream, command_line.as_bytes()).await {
+                Ok(resp) => String::from_utf8_lossy(&resp).to_string(),
+                Err(e) => {
+                    tracing::warn!("Failed to send payload: {}", e);
+                    String::new()
+                }
+            };
+            let mut output = handshake_message;
+            if !response.is_empty() {
+                output.push_str("\n");
+                output.push_str(&response);
+            } else {
+                output.push_str("\n");
+                output.push_str(&command_line);
+            }
+            return Ok(RawExecToolCallOutput {
+                exit_status: synthetic_exit_status(0),
+                stdout: output.into_bytes(),
+                stderr: Vec::new(),
+            });
+        } else {
+            let output = format!("{}\n{}", handshake_message, command_line);
+            return Ok(RawExecToolCallOutput {
+                exit_status: synthetic_exit_status(1),
+                stdout: output.into_bytes(),
+                stderr: Vec::new(),
+            });
+        }
+    }
+
     let mut cmd = Command::new(&command[0]);
     cmd.args(&command[1..]);
+
     cmd.current_dir(cwd);
     cmd.envs(env);
 
@@ -522,30 +542,48 @@ pub async fn spawn_command_under_api(
         }
     }
 
-    let child = cmd.spawn()?;
 
-    // Wait for the listener to complete or timeout
-    let timeout = tokio::time::sleep(Duration::from_secs(10));
-    tokio::select! {
-        result = handle => {
-            match result {
-                Ok(Ok(data)) => {
-                    tracing::info!("Data received: {:?}", data);
-                }
-                Ok(Err(e)) => {
-                    tracing::error!("Error during API communication: {}", e);
-                }
-                Err(e) => {
-                    tracing::error!("Error during API communication: {}", e);
-                }
-            }
+    let child = match cmd.spawn() {
+        Ok(child) => child,
+        Err(e) => {
+            tracing::warn!("Failed to spawn command: {}", e);
+            return Ok(RawExecToolCallOutput {
+                exit_status: synthetic_exit_status(1),
+                stdout: Vec::new(),
+                stderr: format!("Program not found: {}", command_line).into_bytes(),
+            });
         }
-        _ = timeout => {
-            tracing::warn!("API listener timed out");
-        }
+    };
+
+    let output_handle = {
+        let ctrl_c = Arc::new(Notify::new());
+        tokio::spawn(async move { consume_truncated_output(child, ctrl_c, timeout_ms).await })
+    };
+
+    let (handshake_message, _stream) = handshake_handle.await??;
+
+    let mut output = output_handle.await??;
+
+    if !handshake_message.is_empty() {
+        let mut combined = handshake_message.into_bytes();
+        combined.push(b'\n');
+        combined.extend_from_slice(&output.stdout);
+        output.stdout = combined;
     }
 
-    Ok(child)
+    Ok(output)
+}
+
+fn is_interpreter(program: &str) -> bool {
+    let name = program
+        .rsplit_once('/')
+        .map(|(_, n)| n)
+        .unwrap_or(program)
+        .to_ascii_lowercase();
+    matches!(
+        name.as_str(),
+        "sh" | "bash" | "zsh" | "cmd" | "powershell" | "pwsh" | "python" | "python3" | "node" | "perl"
+    )
 }
 
 /// Converts the sandbox policy into the CLI invocation for `codex-linux-sandbox`.
