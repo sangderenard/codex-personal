@@ -275,16 +275,15 @@ pub async fn process_exec_tool_call(
                 env,
             } = params;
 
-            let child = spawn_command_under_api(
+            spawn_command_under_api(
                 command,
                 sandbox_policy,
                 cwd,
                 StdioPolicy::RedirectForShellTool,
                 env,
+                timeout_ms,
             )
-            .await?;
-
-            consume_truncated_output(child, ctrl_c, timeout_ms).await
+            .await
         }
     };
     let duration = start.elapsed();
@@ -472,41 +471,81 @@ pub async fn spawn_command_under_api(
     cwd: PathBuf,
     stdio_policy: StdioPolicy,
     env: HashMap<String, String>,
-) -> std::io::Result<Child> {
+    timeout_ms: Option<u64>,
+) -> Result<RawExecToolCallOutput> {
     use tokio::net::TcpListener;
+    use tokio::io::AsyncReadExt;
+    use tokio::time::timeout;
+    use tokio::sync::Notify;
 
     let listener = TcpListener::bind("127.0.0.1:0").await?; // Bind to an ephemeral port
     let local_addr = listener.local_addr()?; // Get the bound address
 
     tracing::info!("API listener bound to: {}", local_addr);
 
-    let handle = tokio::spawn(async move {
-        match listener.accept().await {
-            Ok((stream, _)) => {
-                tracing::info!("Connection received from: {}", stream.peer_addr()?);
-                let mut buffer = vec![0; 1024];
-                let _ = stream.readable().await;
-                match stream.try_read(&mut buffer) {
-                    Ok(bytes_read) => {
-                        tracing::info!("Received {} bytes", bytes_read);
-                        Ok(buffer[..bytes_read].to_vec())
+    const HANDSHAKE_TRIES: usize = 3;
+    const HANDSHAKE_RETRY: Duration = Duration::from_secs(1);
+
+    let handshake_handle = tokio::spawn(async move {
+        let mut attempts = 0usize;
+        let mut compiled = Vec::new();
+        let mut got_connection = false;
+        loop {
+            if attempts >= HANDSHAKE_TRIES {
+                break;
+            }
+
+            attempts += 1;
+            match timeout(HANDSHAKE_RETRY, listener.accept()).await {
+                Ok(Ok((mut stream, _))) => {
+                    got_connection = true;
+                    tracing::info!("Connection received from: {}", stream.peer_addr()?);
+                    let mut buf = [0u8; 1024];
+                    loop {
+                        let n = stream.read(&mut buf).await?;
+                        if n == 0 {
+                            break;
+                        }
+                        compiled.extend_from_slice(&buf[..n]);
                     }
-                    Err(e) => {
-                        tracing::error!("Error reading from stream: {}", e);
-                        Err(e)
-                    }
+                    break;
+                }
+                Ok(Err(e)) => {
+                    tracing::error!("Error accepting connection: {}", e);
+                    return Err(CodexErr::Io(e));
+                }
+                Err(_) => {
+                    tracing::info!("Waiting for API handshake attempt {}", attempts);
                 }
             }
-            Err(e) => {
-                tracing::error!("Error accepting connection: {}", e);
-                Err(e)
-            }
         }
+
+        let msg = if !compiled.is_empty() {
+            String::from_utf8_lossy(&compiled).replace('\n', " ")
+        } else if !got_connection {
+            "No response on the API".to_string()
+        } else {
+            "No handshake could be completed".to_string()
+        };
+
+        Ok::<_, CodexErr>(msg)
     });
 
-    // Spawn the command as usual
+    let command_line = command.join(" ");
+
+    if !is_interpreter(command.get(0).map(String::as_str).unwrap_or("")) {
+        let handshake_message = handshake_handle.await??;
+        let output = format!("{}\n{}", handshake_message, command_line);
+        return Ok(RawExecToolCallOutput {
+            exit_status: synthetic_exit_status(0),
+            stdout: output.into_bytes(),
+            stderr: Vec::new(),
+        });
+    }
+
     let mut cmd = Command::new(&command[0]);
     cmd.args(&command[1..]);
+
     cmd.current_dir(cwd);
     cmd.envs(env);
 
@@ -522,30 +561,43 @@ pub async fn spawn_command_under_api(
         }
     }
 
-    let child = cmd.spawn()?;
+    let child = match cmd.spawn() {
+        Ok(child) => child,
+        Err(e) => {
+            tracing::warn!("Failed to spawn command: {}", e);
+            return Ok(RawExecToolCallOutput {
+                exit_status: synthetic_exit_status(1),
+                stdout: Vec::new(),
+                stderr: format!("Program not found: {}", command_line).into_bytes(),
+            });
+        }
+    };
 
-    // Wait for the listener to complete or timeout
-    let timeout = tokio::time::sleep(Duration::from_secs(10));
-    tokio::select! {
-        result = handle => {
-            match result {
-                Ok(Ok(data)) => {
-                    tracing::info!("Data received: {:?}", data);
-                }
-                Ok(Err(e)) => {
-                    tracing::error!("Error during API communication: {}", e);
-                }
-                Err(e) => {
-                    tracing::error!("Error during API communication: {}", e);
-                }
-            }
-        }
-        _ = timeout => {
-            tracing::warn!("API listener timed out");
-        }
+    let handshake_message = handshake_handle.await??;
+
+    let ctrl_c = Arc::new(Notify::new());
+    let mut output = consume_truncated_output(child, ctrl_c, timeout_ms).await?;
+
+    if !handshake_message.is_empty() {
+        let mut combined = handshake_message.into_bytes();
+        combined.push(b'\n');
+        combined.extend_from_slice(&output.stdout);
+        output.stdout = combined;
     }
 
-    Ok(child)
+    Ok(output)
+}
+
+fn is_interpreter(program: &str) -> bool {
+    let name = program
+        .rsplit_once('/')
+        .map(|(_, n)| n)
+        .unwrap_or(program)
+        .to_ascii_lowercase();
+    matches!(
+        name.as_str(),
+        "sh" | "bash" | "zsh" | "cmd" | "powershell" | "pwsh" | "python" | "python3" | "node" | "perl"
+    )
 }
 
 /// Converts the sandbox policy into the CLI invocation for `codex-linux-sandbox`.
