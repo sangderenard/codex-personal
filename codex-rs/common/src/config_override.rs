@@ -149,8 +149,10 @@ impl std::str::FromStr for CliConfigOverrides {
 }
 
 impl ValueParserFactory for CliConfigOverrides {
-    fn value_parser() -> ValueParser {
-        ValueParser::new(|s: &str| {
+    type Parser = ValueParser;
+
+    fn value_parser() -> Self::Parser {
+        ValueParser::new(|s: &str| -> Result<CliConfigOverrides, String> {
             Ok(CliConfigOverrides {
                 raw_overrides: vec![s.to_string()],
             })
