@@ -182,7 +182,8 @@ pub async fn process_exec_tool_call(
     };
 
     let mut params = params;
-    params.command[0] = translation_result.translated_command.unwrap_or_else(|| params.command[0].clone());
+    let translated_or_original = translation_result.translated_command.as_ref().map(|s| s.clone()).unwrap_or_else(|| params.command[0].clone());
+    params.command[0] = translated_or_original;
     
     let mut sandbox_type = sandbox_type;
     if CODEX_BLACK_BOX_SANDBOX_STATE == determine_sandbox_state() {
@@ -407,7 +408,7 @@ where
 /// Windows CMD shell sandbox.
 pub async fn spawn_command_under_win64_cmd(
     command: Vec<String>,
-    sandbox_policy: &SandboxPolicy,
+    _sandbox_policy: &SandboxPolicy,
     cwd: PathBuf,
     stdio_policy: StdioPolicy,
     env: HashMap<String, String>,
@@ -428,11 +429,11 @@ pub async fn spawn_command_under_win64_cmd(
         let normalized_path = normalize_path(&batch_script_path);
         let mut cmd = Command::new("cmd.exe");
         cmd.arg("/C").arg(normalized_path);
-        cmd.args(&_command);
-        cmd.current_dir(&_cwd);
-        cmd.envs(&_env);
+        cmd.args(&command);
+        cmd.current_dir(&cwd);
+        cmd.envs(&env);
 
-        match _stdio_policy {
+        match stdio_policy {
             StdioPolicy::RedirectForShellTool => {
                 cmd.stdin(Stdio::null());
                 cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -444,7 +445,7 @@ pub async fn spawn_command_under_win64_cmd(
             }
         }
 
-        cmd.spawn()
+        wrap_spawn_result(cmd.spawn(), translation_result)
     }
 
     #[cfg(not(windows))]
@@ -459,7 +460,7 @@ pub async fn spawn_command_under_win64_cmd(
 /// Windows PowerShell sandbox.
 pub async fn spawn_command_under_win64_ps(
     command: Vec<String>,
-    sandbox_policy: &SandboxPolicy,
+    _sandbox_policy: &SandboxPolicy,
     cwd: PathBuf,
     stdio_policy: StdioPolicy,
     env: HashMap<String, String>,
@@ -908,7 +909,6 @@ pub(crate) async fn consume_truncated_output(
                 Ok(Ok(exit_status)) => exit_status,
                 Ok(e) => e?,
                 Err(_) => {
-                    // timeout
                     child.start_kill()?;
                     synthetic_exit_status(128 + TIMEOUT_CODE)
                 }
@@ -920,8 +920,29 @@ pub(crate) async fn consume_truncated_output(
         }
     };
 
-    let stdout = stdout_handle.await??;
+    let mut stdout = stdout_handle.await??;
     let stderr = stderr_handle.await??;
+
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let parent = Path::new(&manifest_dir).parent().unwrap();
+    let template_path = parent.join("scripts/exec_output_template.md");
+
+    if template_path.exists() {
+        let template = std::fs::read_to_string(&template_path)?;
+        let stdout_content = String::from_utf8_lossy(&stdout);
+        let mut templated_content = template.replace("{{stdout}}", &stdout_content);
+
+        if let Some(translation) = &translation_result {
+            templated_content = templated_content
+                .replace("{{original_command}}", &translation.original_command)
+                .replace("{{translated_command}}", &translation.translated_command.clone().unwrap_or_default())
+                .replace("{{informational_output}}", &translation.informational_output);
+        }
+
+        let reader_path = template_path.with_file_name("templated_output.txt");
+        std::fs::write(&reader_path, &templated_content)?;
+        stdout = templated_content.into_bytes();
+    }
 
     Ok(RawExecToolCallOutput {
         exit_status,
@@ -980,14 +1001,6 @@ fn synthetic_exit_status(code: i32) -> ExitStatus {
     use std::os::windows::process::ExitStatusExt;
     #[expect(clippy::unwrap_used)]
     std::process::ExitStatus::from_raw(code.try_into().unwrap())
-}
-
-/// Wraps the result of `cmd.spawn()` to include additional data.
-pub fn wrap_spawn_result(
-    child_result: std::io::Result<Child>,
-    translation_result: Option<translation::command_translation::CommandTranslationResult>,
-) -> std::io::Result<(Child, Option<translation::command_translation::CommandTranslationResult>)> {
-    child_result.map(|child| (child, translation_result))
 }
 
 

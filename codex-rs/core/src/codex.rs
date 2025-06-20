@@ -21,7 +21,7 @@ use codex_apply_patch::maybe_parse_apply_patch_verified;
 use codex_apply_patch::print_summary;
 use futures::prelude::*;
 use mcp_types::CallToolResult;
-use crate::translation::command_translation::CommandTranslationResult;
+use translation::command_translation::CommandTranslationResult;
 use serde::Serialize;
 use serde_json;
 use tokio::sync::Notify;

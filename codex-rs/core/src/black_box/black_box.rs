@@ -7,7 +7,7 @@ use std::process::Stdio;
 use crate::protocol::SandboxPolicy;
 use crate::exec::StdioPolicy;
 use crate::utils::spawn_wrapper::wrap_spawn_result;
-
+use translation::command_translation::CommandTranslationResult;
 use anyhow::Result;
 pub fn black_box_shell_function(
     _command: Vec<String>,
@@ -43,8 +43,8 @@ pub async fn spawn_command_under_black_box(
     _env: ShellEnvironmentPolicy,
     translation_result: Option<CommandTranslationResult>,
 ) -> std::io::Result<(Child, Option<CommandTranslationResult>)> {
-    let packaged_command = if let Some(result) = translation_result {
-        let mut packaged_command = vec![result.translated_command.unwrap_or_else(|| command[0].clone())];
+    let packaged_command = if let Some(ref result) = translation_result {
+        let mut packaged_command = vec![result.translated_command.clone().unwrap_or_else(|| command[0].clone())];
         packaged_command.extend(command.into_iter().skip(1));
         packaged_command
     } else {

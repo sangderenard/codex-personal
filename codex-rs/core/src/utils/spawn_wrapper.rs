@@ -1,5 +1,5 @@
 use tokio::process::Child;
-use crate::translation::command_translation::CommandTranslationResult;
+use translation::command_translation::CommandTranslationResult;
 
 /// Combines the result of a spawned process with the translation result.
 /// Returns a tuple containing the process handle and the translation result.

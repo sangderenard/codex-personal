@@ -51,3 +51,4 @@ pub use client_common::model_supports_reasoning_summaries;
 pub use model_provider_info::WireApi;
 pub use codex::Codex;
 pub use model_provider_info::ModelProviderInfo;
+pub mod utils;
