@@ -21,6 +21,7 @@ use codex_apply_patch::maybe_parse_apply_patch_verified;
 use codex_apply_patch::print_summary;
 use futures::prelude::*;
 use mcp_types::CallToolResult;
+use crate::translation::command_translation::CommandTranslationResult;
 use serde::Serialize;
 use serde_json;
 use tokio::sync::Notify;
@@ -1394,6 +1395,7 @@ async fn handle_container_exec_with_params(
                 stdout,
                 stderr,
                 duration,
+                translation_result,
             } = output;
 
             sess.notify_exec_command_end(&sub_id, &call_id, &stdout, &stderr, exit_code)
@@ -1404,6 +1406,7 @@ async fn handle_container_exec_with_params(
                 if is_success { &stdout } else { &stderr },
                 exit_code,
                 duration,
+                translation_result.as_ref(),
             );
 
             ResponseInputItem::FunctionCallOutput {
@@ -1502,6 +1505,7 @@ async fn handle_sanbox_error(
                         stdout,
                         stderr,
                         duration,
+                        translation_result,
                     } = retry_output;
 
                     sess.notify_exec_command_end(
@@ -1518,6 +1522,7 @@ async fn handle_sanbox_error(
                         if is_success { &stdout } else { &stderr },
                         exit_code,
                         duration,
+                        translation_result.as_ref(),
                     );
 
                     ResponseInputItem::FunctionCallOutput {
@@ -1925,7 +1930,12 @@ fn get_writable_roots(cwd: &Path) -> Vec<std::path::PathBuf> {
 }
 
 /// Exec output is a pre-serialized JSON payload
-fn format_exec_output(output: &str, exit_code: i32, duration: std::time::Duration) -> String {
+fn format_exec_output(
+    output: &str,
+    exit_code: i32,
+    duration: std::time::Duration,
+    translation: Option<&CommandTranslationResult>,
+) -> String {
     #[derive(Serialize)]
     struct ExecMetadata {
         exit_code: i32,
@@ -1936,6 +1946,8 @@ fn format_exec_output(output: &str, exit_code: i32, duration: std::time::Duratio
     struct ExecOutput<'a> {
         output: &'a str,
         metadata: ExecMetadata,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        translation: Option<&'a CommandTranslationResult>,
     }
 
     // round to 1 decimal place
@@ -1947,6 +1959,7 @@ fn format_exec_output(output: &str, exit_code: i32, duration: std::time::Duratio
             exit_code,
             duration_seconds,
         },
+        translation,
     };
 
     #[expect(clippy::expect_used)]

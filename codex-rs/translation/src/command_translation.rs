@@ -16,7 +16,9 @@ pub struct CommandTranslation {
     warnings: usize,
 }
 
-#[derive(Debug, Clone)]
+use serde::Serialize;
+
+#[derive(Debug, Clone, Serialize)]
 pub struct CommandTranslationResult {
     pub original_command: String,
     pub translated_command: Option<String>,

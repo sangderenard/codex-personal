@@ -190,12 +190,13 @@ pub async fn process_exec_tool_call(
     }
 
     let raw_output_result = match sandbox_type {
-        SandboxType::None => exec(params, sandbox_policy, ctrl_c).await,
+        SandboxType::None => exec(params, sandbox_policy, ctrl_c, Some(translation_result.clone())).await,
         SandboxType::BlackBox => {
             Ok(RawExecToolCallOutput {
                 exit_status: synthetic_exit_status(0),
                 stdout: Vec::new(),
                 stderr: Vec::new(),
+                translation_result: Some(translation_result.clone()),
             })
         }
         SandboxType::MacosSeatbelt => {
@@ -214,7 +215,7 @@ pub async fn process_exec_tool_call(
                 Some(translation_result.clone()),
             )
             .await?;
-            consume_truncated_output(child, ctrl_c, timeout_ms).await
+            consume_truncated_output(child, ctrl_c, timeout_ms, translation_result).await
         }
         SandboxType::LinuxSeccomp => {
             let ExecParams {
@@ -238,7 +239,7 @@ pub async fn process_exec_tool_call(
             )
             .await?;
 
-            consume_truncated_output(child, ctrl_c, timeout_ms).await
+            consume_truncated_output(child, ctrl_c, timeout_ms, translation_result).await
         }
         SandboxType::Win64Cmd => {
             let ExecParams {
@@ -258,7 +259,7 @@ pub async fn process_exec_tool_call(
             )
             .await?;
 
-            consume_truncated_output(child, ctrl_c, timeout_ms).await
+            consume_truncated_output(child, ctrl_c, timeout_ms, translation_result).await
         }
         SandboxType::Win64Ps => {
             let ExecParams {
@@ -278,7 +279,7 @@ pub async fn process_exec_tool_call(
             )
             .await?;
 
-            consume_truncated_output(child, ctrl_c, timeout_ms).await
+            consume_truncated_output(child, ctrl_c, timeout_ms, translation_result).await
         }
         SandboxType::Api => {
             let ExecParams {
@@ -334,6 +335,7 @@ pub async fn process_exec_tool_call(
                 stdout,
                 stderr,
                 duration,
+                translation_result: raw_output.translation_result,
             })
         }
         Err(err) => {
@@ -553,6 +555,7 @@ pub async fn spawn_command_under_api(
                 exit_status: synthetic_exit_status(code),
                 stdout: output.into_bytes(),
                 stderr: Vec::new(),
+                translation_result,
             });
         } else {
             status_factor *= API_HANDSHAKE_FAILURE;
@@ -561,6 +564,7 @@ pub async fn spawn_command_under_api(
                 exit_status: synthetic_exit_status(status_factor),
                 stdout: output.into_bytes(),
                 stderr: Vec::new(),
+                translation_result,
             });
 
         }
@@ -594,13 +598,15 @@ pub async fn spawn_command_under_api(
                 exit_status: synthetic_exit_status(status_factor),
                 stdout: Vec::new(),
                 stderr: format!("Program not found: {}", command_line).into_bytes(),
+                translation_result,
             });
         }
     };
 
     let output_handle = {
         let ctrl_c = Arc::new(Notify::new());
-        tokio::spawn(async move { consume_truncated_output(child, ctrl_c, timeout_ms).await })
+        let tr = translation_result.clone();
+        tokio::spawn(async move { consume_truncated_output(child, ctrl_c, timeout_ms, tr).await })
     };
 
     let (handshake_message, _stream) = handshake_handle.await??;
@@ -619,6 +625,7 @@ pub async fn spawn_command_under_api(
     if status_factor != 1 {
         output.exit_status = synthetic_exit_status(status_factor);
     }
+    output.translation_result = translation_result;
 
     Ok(output)
 }
@@ -747,6 +754,7 @@ pub struct RawExecToolCallOutput {
     pub exit_status: ExitStatus,
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
+    pub translation_result: Option<translation::command_translation::CommandTranslationResult>,
 }
 
 #[derive(Debug)]
@@ -755,6 +763,7 @@ pub struct ExecToolCallOutput {
     pub stdout: String,
     pub stderr: String,
     pub duration: Duration,
+    pub translation_result: Option<translation::command_translation::CommandTranslationResult>,
 }
 
 async fn exec(
@@ -766,6 +775,7 @@ async fn exec(
     }: ExecParams,
     sandbox_policy: &SandboxPolicy,
     ctrl_c: Arc<Notify>,
+    translation_result: Option<translation::command_translation::CommandTranslationResult>,
 ) -> Result<RawExecToolCallOutput> {
     let (program, args) = command.split_first().ok_or_else(|| {
         CodexErr::Io(io::Error::new(
@@ -784,7 +794,7 @@ async fn exec(
         env,
     )
     .await?;
-    consume_truncated_output(child, ctrl_c, timeout_ms).await
+    consume_truncated_output(child, ctrl_c, timeout_ms, translation_result).await
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -848,6 +858,7 @@ pub(crate) async fn consume_truncated_output(
     mut child: Child,
     ctrl_c: Arc<Notify>,
     timeout_ms: Option<u64>,
+    translation_result: Option<translation::command_translation::CommandTranslationResult>,
 ) -> Result<RawExecToolCallOutput> {
     let stdout_reader = child.stdout.take().ok_or_else(|| {
         CodexErr::Io(io::Error::other(
@@ -916,6 +927,7 @@ pub(crate) async fn consume_truncated_output(
         exit_status,
         stdout,
         stderr,
+        translation_result,
     })
 }
 
