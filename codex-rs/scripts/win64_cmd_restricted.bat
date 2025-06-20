@@ -15,6 +15,8 @@ net localgroup Users "%SANDBOX_USER%" /add /Y
 if exist "%SANDBOX_ROOT%" rd /s /q "%SANDBOX_ROOT%"
 md "%SANDBOX_ROOT%"
 
+rem Set the sandbox directory owner before adjusting permissions
+icacls "%SANDBOX_ROOT%" /setowner %SANDBOX_USER% /T /C
 icacls "%SANDBOX_ROOT%" /inheritance:r
 icacls "%SANDBOX_ROOT%" /grant:r %SANDBOX_USER%:(OI)(CI)F
 :: Build nested directories under sandbox root

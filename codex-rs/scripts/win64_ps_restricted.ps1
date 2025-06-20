@@ -18,6 +18,11 @@ if (Test-Path $sandboxRoot) {
 }
 New-Item -ItemType Directory -Path $sandboxRoot | Out-Null
 
+# Set the sandbox directory owner before adjusting permissions
+icacls $sandboxRoot /setowner $Username /T /C | Out-Null
+icacls $sandboxRoot /inheritance:r | Out-Null
+icacls $sandboxRoot /grant:r "$Username:(OI)(CI)F" | Out-Null
+
 $prevPath = $sandboxRoot
 for ($i = 1; $i -le $Depth; $i++) {
     $dest = Join-Path $sandboxRoot "copy_$i"
