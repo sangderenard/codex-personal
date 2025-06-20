@@ -19,6 +19,7 @@ use tokio::process::Command;
 use tokio::sync::Notify;
 
 use translation::{DEFAULT_TRANSLATOR, OPERATING_SHELL, initialize};
+use translation::command_translation::normalize_path;
 
 use crate::error::CodexErr;
 use crate::error::Result;
@@ -33,6 +34,7 @@ pub use crate::black_box::black_box::{
     enable_black_box_sandbox,
     disable_black_box_sandbox,
 };
+use crate::utils::spawn_wrapper::wrap_spawn_result;
 
 
 // Maximum we send for each stream, which is either:
@@ -166,7 +168,7 @@ pub async fn process_exec_tool_call(
     if DEFAULT_TRANSLATOR.get().is_none() {
         initialize(std::env::consts::OS);
     }
-    let translated_command = {
+    let translation_result = {
         let mut guard = DEFAULT_TRANSLATOR
             .get()
             .expect("translator initialized")
@@ -178,8 +180,10 @@ pub async fn process_exec_tool_call(
             .unwrap_or(std::env::consts::OS);
         guard.translate_command(&params.command[0], shell, threat_info, threat_weights)
     };
-    println!("{}", translated_command); // Log the translation
 
+    let mut params = params;
+    params.command[0] = translation_result.translated_command.unwrap_or_else(|| params.command[0].clone());
+    
     let mut sandbox_type = sandbox_type;
     if CODEX_BLACK_BOX_SANDBOX_STATE == determine_sandbox_state() {
         sandbox_type = SandboxType::BlackBox;
@@ -201,12 +205,13 @@ pub async fn process_exec_tool_call(
                 timeout_ms,
                 env,
             } = params;
-            let child = spawn_command_under_seatbelt(
+            let (child, translation_result) = spawn_command_under_seatbelt(
                 command,
                 sandbox_policy,
                 cwd,
                 StdioPolicy::RedirectForShellTool,
                 env,
+                Some(translation_result.clone()),
             )
             .await?;
             consume_truncated_output(child, ctrl_c, timeout_ms).await
@@ -222,13 +227,14 @@ pub async fn process_exec_tool_call(
             let codex_linux_sandbox_exe = codex_linux_sandbox_exe
                 .as_ref()
                 .ok_or(CodexErr::LandlockSandboxExecutableNotProvided)?;
-            let child = spawn_command_under_linux_sandbox(
+            let (child, translation_result) = spawn_command_under_linux_sandbox(
                 codex_linux_sandbox_exe,
                 command,
                 sandbox_policy,
                 cwd,
                 StdioPolicy::RedirectForShellTool,
                 env,
+                Some(translation_result.clone()),
             )
             .await?;
 
@@ -242,12 +248,13 @@ pub async fn process_exec_tool_call(
                 env,
             } = params;
 
-            let child = spawn_command_under_win64_cmd(
+            let (child, translation_result) = spawn_command_under_win64_cmd(
                 command,
                 sandbox_policy,
                 cwd,
                 StdioPolicy::RedirectForShellTool,
                 env,
+                Some(translation_result.clone()),
             )
             .await?;
 
@@ -261,12 +268,13 @@ pub async fn process_exec_tool_call(
                 env,
             } = params;
 
-            let child = spawn_command_under_win64_ps(
+            let (child, translation_result) = spawn_command_under_win64_ps(
                 command,
                 sandbox_policy,
                 cwd,
                 StdioPolicy::RedirectForShellTool,
                 env,
+                Some(translation_result.clone()),
             )
             .await?;
 
@@ -287,6 +295,7 @@ pub async fn process_exec_tool_call(
                 StdioPolicy::RedirectForShellTool,
                 env,
                 timeout_ms,
+                Some(translation_result.clone()),
             )
             .await
         }
@@ -340,19 +349,22 @@ pub async fn spawn_command_under_seatbelt(
     cwd: PathBuf,
     stdio_policy: StdioPolicy,
     env: HashMap<String, String>,
-) -> std::io::Result<Child> {
+    translation_result: Option<translation::command_translation::CommandTranslationResult>,
+) -> std::io::Result<(Child, Option<translation::command_translation::CommandTranslationResult>)> {
     let args = create_seatbelt_command_args(command, sandbox_policy, &cwd);
     let arg0 = None;
-    spawn_child_async(
-        PathBuf::from(MACOS_PATH_TO_SEATBELT_EXECUTABLE),
-        args,
-        arg0,
-        cwd,
-        sandbox_policy,
-        stdio_policy,
-        env,
+    wrap_spawn_result(
+        spawn_child_async(
+            PathBuf::from(MACOS_PATH_TO_SEATBELT_EXECUTABLE),
+            args,
+            arg0,
+            cwd,
+            sandbox_policy,
+            stdio_policy,
+            env,
+        ).await,
+        translation_result,
     )
-    .await
 }
 
 /// Spawn a shell tool command under the Linux Landlock+seccomp sandbox helper
@@ -369,43 +381,51 @@ pub async fn spawn_command_under_linux_sandbox<P>(
     cwd: PathBuf,
     stdio_policy: StdioPolicy,
     env: HashMap<String, String>,
-) -> std::io::Result<Child>
+    translation_result: Option<translation::command_translation::CommandTranslationResult>,
+) -> std::io::Result<(Child, Option<translation::command_translation::CommandTranslationResult>)>
 where
     P: AsRef<Path>,
 {
     let args = create_linux_sandbox_command_args(command, sandbox_policy, &cwd);
     let arg0 = Some("codex-linux-sandbox");
-    spawn_child_async(
-        codex_linux_sandbox_exe.as_ref().to_path_buf(),
-        args,
-        arg0,
-        cwd,
-        sandbox_policy,
-        stdio_policy,
-        env,
+    wrap_spawn_result(
+        spawn_child_async(
+            codex_linux_sandbox_exe.as_ref().to_path_buf(),
+            args,
+            arg0,
+            cwd,
+            sandbox_policy,
+            stdio_policy,
+            env,
+        ).await,
+        translation_result,
     )
-    .await
 }
 
 /// Windows CMD shell sandbox.
 pub async fn spawn_command_under_win64_cmd(
-    _command: Vec<String>,
-    _sandbox_policy: &SandboxPolicy,
-    _cwd: PathBuf,
-    _stdio_policy: StdioPolicy,
-    _env: HashMap<String, String>,
-) -> std::io::Result<Child> {
+    command: Vec<String>,
+    sandbox_policy: &SandboxPolicy,
+    cwd: PathBuf,
+    stdio_policy: StdioPolicy,
+    env: HashMap<String, String>,
+    translation_result: Option<translation::command_translation::CommandTranslationResult>,
+) -> std::io::Result<(Child, Option<translation::command_translation::CommandTranslationResult>)> {
     #[cfg(windows)]
     {
         // Use a helper script to restrict command execution. This wrapper denies
         // attempts to change directories above the current working directory and
         // runs the command under a restricted user account.
-        let batch_script_path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/scripts/win64_cmd_restricted.bat"
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let parent = Path::new(&manifest_dir).parent();
+        
+        let batch_script_path = format!("{}/{}",
+            parent.unwrap().to_str().unwrap(),
+            "scripts/win64_cmd_restricted.bat"
         );
+        let normalized_path = normalize_path(&batch_script_path);
         let mut cmd = Command::new("cmd.exe");
-        cmd.arg("/C").arg(batch_script_path);
+        cmd.arg("/C").arg(normalized_path);
         cmd.args(&_command);
         cmd.current_dir(&_cwd);
         cmd.envs(&_env);
@@ -436,26 +456,27 @@ pub async fn spawn_command_under_win64_cmd(
 
 /// Windows PowerShell sandbox.
 pub async fn spawn_command_under_win64_ps(
-    _command: Vec<String>,
-    _sandbox_policy: &SandboxPolicy,
-    _cwd: PathBuf,
-    _stdio_policy: StdioPolicy,
-    _env: HashMap<String, String>,
-) -> std::io::Result<Child> {
+    command: Vec<String>,
+    sandbox_policy: &SandboxPolicy,
+    cwd: PathBuf,
+    stdio_policy: StdioPolicy,
+    env: HashMap<String, String>,
+    translation_result: Option<translation::command_translation::CommandTranslationResult>,
+) -> std::io::Result<(Child, Option<translation::command_translation::CommandTranslationResult>)> {
     #[cfg(windows)]
     {
-        // PowerShell version of the restricted wrapper.
         let powershell_script_path = concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/scripts/win64_ps_restricted.ps1"
+            "src/scripts/win64_ps_restricted.ps1"
         );
+        let normalized_path = normalize_path(&powershell_script_path);
         let mut cmd = Command::new("powershell.exe");
-        cmd.arg("-File").arg(powershell_script_path);
-        cmd.args(&_command);
-        cmd.current_dir(&_cwd);
-        cmd.envs(&_env);
+        cmd.arg("-File").arg(normalized_path);
+        cmd.args(&command);
+        cmd.current_dir(&cwd);
+        cmd.envs(&env);
 
-        match _stdio_policy {
+        match stdio_policy {
             StdioPolicy::RedirectForShellTool => {
                 cmd.stdin(Stdio::null());
                 cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -467,7 +488,7 @@ pub async fn spawn_command_under_win64_ps(
             }
         }
 
-        cmd.spawn()
+        wrap_spawn_result(cmd.spawn(), translation_result)
     }
 
     #[cfg(not(windows))]
@@ -487,6 +508,7 @@ pub async fn spawn_command_under_api(
     stdio_policy: StdioPolicy,
     env: HashMap<String, String>,
     timeout_ms: Option<u64>,
+    translation_result: Option<translation::command_translation::CommandTranslationResult>,
 ) -> Result<RawExecToolCallOutput> {
     use tokio::net::TcpListener;
     use tokio::sync::Notify;
@@ -947,4 +969,14 @@ fn synthetic_exit_status(code: i32) -> ExitStatus {
     #[expect(clippy::unwrap_used)]
     std::process::ExitStatus::from_raw(code.try_into().unwrap())
 }
+
+/// Wraps the result of `cmd.spawn()` to include additional data.
+pub fn wrap_spawn_result(
+    child_result: std::io::Result<Child>,
+    translation_result: Option<translation::command_translation::CommandTranslationResult>,
+) -> std::io::Result<(Child, Option<translation::command_translation::CommandTranslationResult>)> {
+    child_result.map(|child| (child, translation_result))
+}
+
+
 

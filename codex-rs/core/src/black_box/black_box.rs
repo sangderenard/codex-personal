@@ -6,6 +6,7 @@ use tokio::process::{Child, Command};
 use std::process::Stdio;
 use crate::protocol::SandboxPolicy;
 use crate::exec::StdioPolicy;
+use crate::utils::spawn_wrapper::wrap_spawn_result;
 
 use anyhow::Result;
 pub fn black_box_shell_function(
@@ -40,9 +41,18 @@ pub async fn spawn_command_under_black_box(
     cwd: PathBuf,
     stdio_policy: StdioPolicy,
     _env: ShellEnvironmentPolicy,
-) -> std::io::Result<Child> {
-    let mut cmd = Command::new(&command[0]);
-    cmd.args(&command[1..]);
+    translation_result: Option<CommandTranslationResult>,
+) -> std::io::Result<(Child, Option<CommandTranslationResult>)> {
+    let packaged_command = if let Some(result) = translation_result {
+        let mut packaged_command = vec![result.translated_command.unwrap_or_else(|| command[0].clone())];
+        packaged_command.extend(command.into_iter().skip(1));
+        packaged_command
+    } else {
+        command
+    };
+
+    let mut cmd = Command::new(&packaged_command[0]);
+    cmd.args(&packaged_command[1..]);
     cmd.current_dir(cwd);
 
     match stdio_policy {
@@ -57,5 +67,6 @@ pub async fn spawn_command_under_black_box(
         }
     }
 
-    cmd.spawn()
+    let (child, translation_result) = wrap_spawn_result(cmd.spawn(), translation_result)?;
+    Ok((child, translation_result))
 }

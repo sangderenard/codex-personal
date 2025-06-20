@@ -17,10 +17,12 @@ async fn test_spawn_command_under_api() {
     let stdio_policy = StdioPolicy::RedirectForShellTool;
     let env = HashMap::new();
 
+    // Update expectations for spawn_command_under_api
     match spawn_command_under_api(command, &sandbox_policy, cwd, stdio_policy, env, None).await {
-        Ok(output) => {
-            assert_eq!(output.exit_status.code(), Some(API_HANDSHAKE_FAILURE));
-            let stdout = String::from_utf8_lossy(&output.stdout);
+        Ok((child, translation_result)) => {
+            let exit_status = child.await.unwrap();
+            assert_eq!(exit_status.code(), Some(API_HANDSHAKE_FAILURE));
+            let stdout = String::from_utf8_lossy(&translation_result.stdout);
             assert!(stdout.contains("Hello, World!"), "Unexpected output: {}", stdout);
         }
         Err(e) => {
@@ -38,8 +40,7 @@ async fn test_spawn_command_under_api_no_handshake() {
     let stdio_policy = StdioPolicy::RedirectForShellTool;
     let env = HashMap::new();
 
-    let output = spawn_command_under_api(command, &sandbox_policy, cwd, stdio_policy, env, Some(100)).await
-        .expect("spawn under api failed");
+    let output = spawn_command_under_api(command, &sandbox_policy, cwd, stdio_policy, env, Some(100)).await.expect("spawn under api failed");
 
     assert_eq!(output.exit_status.code(), Some(API_HANDSHAKE_FAILURE));
     let stdout = String::from_utf8_lossy(&output.stdout);

@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::process::Command;
+use std::path::{Path, PathBuf};
+
 const MAX_TRANSLATION_WARNINGS: usize = 3; // Define constant for max warnings
 
 #[derive(Debug, Clone)]
@@ -12,6 +14,13 @@ pub struct CommandTranslator {
 pub struct CommandTranslation {
     os_mappings: HashMap<String, String>,
     warnings: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct CommandTranslationResult {
+    pub original_command: String,
+    pub translated_command: Option<String>,
+    pub informational_output: String,
 }
 
 impl CommandTranslator {
@@ -136,34 +145,43 @@ impl CommandTranslator {
         os: &str,
         threat_info: &str,
         threat_weights: &[f64],
-    ) -> String {
+    ) -> CommandTranslationResult {
         let threat_statement = format!("Threat Information: {}", threat_info);
         let weights_statement = format!("Categorical Threat Weights: {:?}", threat_weights);
 
-        if let Some(translation) = self.translations.get_mut(command) {
-            let translated_command = translation
-                .os_mappings
-                .get(os)
-                .cloned()
-                .unwrap();
+        let informational_output;
+        let translated_command;
 
+        if let Some(translation) = self.translations.get_mut(command) {
+            translated_command = translation.os_mappings.get(os).cloned();
             translation.warnings += 1;
+
             if translation.warnings > self.max_warnings {
-                return format!(
+                informational_output = format!(
                     "Automatic translation disabled for '{}'. Add the command to the database if successful.\n{}\n{}",
                     command, threat_statement, weights_statement
                 );
+            } else {
+                informational_output = format!(
+                    "Your command was: {}\n{}\n{}\nTranslated Command: {}",
+                    command,
+                    threat_statement,
+                    weights_statement,
+                    translated_command.clone().unwrap_or_else(|| "<none>".to_string())
+                );
             }
-
-            format!(
-                "Your command was: {}\n{}\n{}\nTranslated Command: {}",
-                command, threat_statement, weights_statement, translated_command
-            )
         } else {
-            format!(
+            translated_command = None;
+            informational_output = format!(
                 "Your command was: {}\n{}\n{}\nNo translation available.",
                 command, threat_statement, weights_statement
-            )
+            );
+        }
+
+        CommandTranslationResult {
+            original_command: command.to_string(),
+            translated_command,
+            informational_output,
         }
     }
 
@@ -183,4 +201,30 @@ impl CommandTranslator {
     pub fn get_warnings(&self, command: &str) -> usize {
         self.translations.get(command).map_or(0, |t| t.warnings)
     }
+}
+
+/// Converts a path with backslashes to forward slashes.
+pub fn to_unix_path(path: &str) -> String {
+    path.replace('\\', "/")
+}
+
+/// Converts a path with forward slashes to Windows-style backslashes.
+pub fn to_windows_path(path: &str) -> String {
+    path.replace('/', "\\")
+}
+
+/// Normalizes a path to the current operating system's format.
+pub fn normalize_path(path: &str) -> PathBuf {
+    let converted_path = if cfg!(windows) {
+        to_windows_path(path)
+    } else {
+        to_unix_path(path)
+    };
+    Path::new(&converted_path).to_path_buf()
+}
+
+/// Stub for normalizing paths in commands.
+pub fn normalize_command_paths(command: &str) -> String {
+    // TODO: Implement logic to determine paths from flags and normalize them.
+    command.to_string()
 }

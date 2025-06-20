@@ -145,70 +145,82 @@ async fn run_command_under_sandbox(
             let codex_linux_sandbox_exe = config
                 .codex_linux_sandbox_exe
                 .expect("codex-linux-sandbox executable not found");
-            spawn_command_under_linux_sandbox(
+            let (child, translation_result) = spawn_command_under_linux_sandbox(
                 codex_linux_sandbox_exe,
                 command,
                 &config.sandbox_policy,
                 cwd,
                 stdio_policy,
                 env,
+                Some(translation_result.clone()),
             )
-            .await?
+            .await?;
+            child
         }
         SandboxType::Landlock => {
             #[expect(clippy::expect_used)]
             let codex_linux_sandbox_exe = config
                 .codex_linux_sandbox_exe
                 .expect("codex-linux-sandbox executable not found");
-            spawn_command_under_linux_sandbox(
+            let (child, translation_result) = spawn_command_under_linux_sandbox(
                 codex_linux_sandbox_exe,
                 command,
                 &config.sandbox_policy,
                 cwd,
                 stdio_policy,
                 env,
+                Some(translation_result.clone()),
             )
-            .await?
+            .await?;
+            child
         }
         SandboxType::Seatbelt => {
-            spawn_command_under_seatbelt(
+            let (child, translation_result) = spawn_command_under_seatbelt(
                 command,
                 &config.sandbox_policy,
                 cwd,
                 stdio_policy,
                 env,
+                Some(translation_result.clone()),
             )
-            .await?
+            .await?;
+            child
         }
         SandboxType::BlackBox => {
-            spawn_command_under_black_box(
+            let (child, translation_result) = spawn_command_under_black_box(
                 command,
                 config.sandbox_policy.clone(),
                 cwd,
                 stdio_policy,
                 config.shell_environment_policy.clone(),
+                Some(translation_result.clone()),
             )
-            .await?
+            .await?;
+            child
         }
         SandboxType::Win64Cmd => {
-            spawn_command_under_win64_cmd(
+            let (child, translation_result) = spawn_command_under_win64_cmd(
                 command,
                 &config.sandbox_policy,
                 cwd,
                 stdio_policy,
                 env,
+                Some(translation_result.clone()),
             )
-            .await?
+            .await?;
+            child
         }
         SandboxType::Win64Ps => {
-            spawn_command_under_win64_ps(
+            let (mut child, translation_result) = spawn_command_under_win64_ps(
                 command,
                 &config.sandbox_policy,
                 cwd,
                 stdio_policy,
                 env,
+                Some(translation_result.clone()),
             )
-            .await?
+            .await?;
+            child
         }
         SandboxType::Api => {
             let output = spawn_command_under_api(
@@ -248,12 +260,13 @@ pub async fn run_command_under_win64_cmd(
     let env = create_env(&ShellEnvironmentPolicy::default());
     let stdio_policy = StdioPolicy::Inherit;
 
-    let mut child = spawn_command_under_win64_cmd(
+    let (child, translation_result) = spawn_command_under_win64_cmd(
         command,
         &sandbox_policy,
         cwd,
         stdio_policy,
         env,
+        Some(translation_result.clone()),
     )
     .await?;
 
@@ -269,12 +282,13 @@ pub async fn run_command_under_win64_ps(
     let env = create_env(&ShellEnvironmentPolicy::default());
     let stdio_policy = StdioPolicy::Inherit;
 
-    let mut child = spawn_command_under_win64_ps(
+    let (mut child, translation_result) = spawn_command_under_win64_ps(
         command,
         &sandbox_policy,
         cwd,
         stdio_policy,
         env,
+        Some(translation_result.clone()),
     )
     .await?;
 
