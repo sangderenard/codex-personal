@@ -10,7 +10,6 @@ use crate::utils::spawn_wrapper::wrap_spawn_result;
 use translation::command_translation::CommandTranslationResult;
 use anyhow::Result;
 use crate::internal_commands::get_internal_command_function;
-use tokio::io::{AsyncWriteExt, AsyncReadExt};
 
 pub fn black_box_shell_function(
     _command: Vec<String>,
@@ -38,6 +37,16 @@ pub fn is_black_box_sandbox_enabled() -> bool {
     unsafe { BLACK_BOX_SANDBOX_ENABLED }
 }
 
+fn spawn_internal_command_child(stdout: String, stderr: String) -> std::io::Result<Child> {
+    let mut cmd = Command::new("sh");
+    cmd.arg("-c").arg("printf '%s' \"$OUT\"; printf '%s' \"$ERR\" >&2");
+    cmd.env("OUT", stdout);
+    cmd.env("ERR", stderr);
+    cmd.stdin(Stdio::null());
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    cmd.spawn()
+}
+
 pub async fn spawn_command_under_black_box(
     command: Vec<String>,
     _sandbox_policy: SandboxPolicy,
@@ -55,21 +64,8 @@ pub async fn spawn_command_under_black_box(
     };
 
     if let Some(internal_command_fn) = get_internal_command_function(&packaged_command[0]) {
-        let mut stdout = Vec::new();
-        let mut stderr = Vec::new();
-
-        match internal_command_fn(&packaged_command[1..], cwd.clone()).await {
-            Ok(output) => {
-                stdout.extend_from_slice(output.stdout.as_bytes());
-                stderr.extend_from_slice(output.stderr.as_bytes());
-            }
-            Err(e) => {
-                stderr.extend_from_slice(format!("Error: {}", e).as_bytes());
-            }
-        }
-
-        // Simulate a child process with internal command results
-        let child = Child::from_internal_results(stdout, stderr);
+        let result = internal_command_fn(&packaged_command[1..], cwd.clone())?;
+        let child = spawn_internal_command_child(result.stdout, result.stderr)?;
         return Ok((child, translation_result));
     }
 
