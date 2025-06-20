@@ -397,7 +397,12 @@ pub async fn spawn_command_under_win64_cmd(
 ) -> std::io::Result<Child> {
     #[cfg(windows)]
     {
-        let batch_script_path = "path_to_batch_script.bat"; // Placeholder for batch script path
+        // Use a helper script to restrict command execution. This wrapper denies
+        // attempts to change directories above the current working directory.
+        let batch_script_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/scripts/win64_cmd_restricted.bat"
+        );
         let mut cmd = Command::new("cmd.exe");
         cmd.arg("/C").arg(batch_script_path);
         cmd.args(&_command);
@@ -438,7 +443,11 @@ pub async fn spawn_command_under_win64_ps(
 ) -> std::io::Result<Child> {
     #[cfg(windows)]
     {
-        let powershell_script_path = "path_to_powershell_script.ps1"; // Placeholder for PowerShell script path
+        // PowerShell version of the restricted wrapper.
+        let powershell_script_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/scripts/win64_ps_restricted.ps1"
+        );
         let mut cmd = Command::new("powershell.exe");
         cmd.arg("-File").arg(powershell_script_path);
         cmd.args(&_command);
