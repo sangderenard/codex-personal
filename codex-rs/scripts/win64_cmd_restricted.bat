@@ -6,6 +6,7 @@ set "SANDBOX_USER=SandboxUser"
 set "SANDBOX_PASS=YourStrongP@ssw0rd"
 set "SANDBOX_ROOT=%CD%\sandbox"
 set "DEPTH=3"
+set "OUTFILE=%SANDBOX_ROOT%\cmd_output.txt"
 
 :: Create the user if needed
 net user "%SANDBOX_USER%" "%SANDBOX_PASS%" /add /expires:never /passwordchg:no /passwordreq:yes >nul 2>&1
@@ -33,6 +34,7 @@ if %errorlevel%==0 (
 
 :: Launch command under restricted user
 echo Launching sandbox as %SANDBOX_USER% in %SANDBOX_ROOT%...
-runas /user:%COMPUTERNAME%\%SANDBOX_USER% "cmd.exe /c cd /d \"%SANDBOX_ROOT%\" && %CMDLINE%"
+runas /user:%COMPUTERNAME%\%SANDBOX_USER% "cmd.exe /c cd /d \"%SANDBOX_ROOT%\" && %CMDLINE% > \"%OUTFILE%\" 2>&1"
+type "%OUTFILE%"
 
 endlocal

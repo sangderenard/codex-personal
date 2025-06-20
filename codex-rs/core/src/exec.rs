@@ -398,7 +398,8 @@ pub async fn spawn_command_under_win64_cmd(
     #[cfg(windows)]
     {
         // Use a helper script to restrict command execution. This wrapper denies
-        // attempts to change directories above the current working directory.
+        // attempts to change directories above the current working directory and
+        // runs the command under a restricted user account.
         let batch_script_path = concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/scripts/win64_cmd_restricted.bat"
