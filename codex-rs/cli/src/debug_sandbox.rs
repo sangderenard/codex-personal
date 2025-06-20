@@ -228,7 +228,7 @@ async fn run_command_under_sandbox(
             child
         }
         SandboxType::Win64Ps => {
-            let (mut child, _returned_tr) = spawn_command_under_win64_ps(
+            let (child, _returned_tr) = spawn_command_under_win64_ps(
                 command,
                 &config.sandbox_policy,
                 cwd,
