@@ -1,27 +1,18 @@
 param(
   [string[]]$Command,
-  [int]$Depth = 3,
-  [string]$Username = "SandboxUserPS",
-  [string]$PasswordPlain = "YourStrongP@ssw0rd"
+  [int]$Depth = 3
 )
 
-$secPass = ConvertTo-SecureString $PasswordPlain -AsPlainText -Force
-if (-not (Get-LocalUser -Name $Username -ErrorAction SilentlyContinue)) {
-    New-LocalUser -Name $Username -Password $secPass -PasswordNeverExpires -UserMayNotChangePassword
-}
-Add-LocalGroupMember -Group Users -Member $Username -ErrorAction SilentlyContinue
-
 $origPath    = (Get-Location).ProviderPath
-$sandboxRoot = Join-Path $origPath "sandbox"
+$sandboxRoot = Join-Path $env:USERPROFILE "sandbox"
 if (Test-Path $sandboxRoot) {
     Remove-Item $sandboxRoot -Recurse -Force
 }
 New-Item -ItemType Directory -Path $sandboxRoot | Out-Null
 
 # Set the sandbox directory owner before adjusting permissions
-icacls $sandboxRoot /setowner $Username /T /C | Out-Null
 icacls $sandboxRoot /inheritance:r | Out-Null
-icacls $sandboxRoot /grant:r "$Username:(OI)(CI)F" | Out-Null
+icacls $sandboxRoot /grant:r "$env:USERNAME:(OI)(CI)F" | Out-Null
 
 $prevPath = $sandboxRoot
 for ($i = 1; $i -le $Depth; $i++) {
@@ -30,14 +21,18 @@ for ($i = 1; $i -le $Depth; $i++) {
     $prevPath = $dest
 }
 
+if (-not $Command -or $Command.Count -eq 0) {
+    Write-Error "Error: Command parameter is empty or invalid."
+    exit 1
+}
+
 $cmdLine = $Command -join ' '
 if ($cmdLine -match '\bcd\s+\.\.') {
     Write-Error "cd .. is not allowed."
     exit 1
 }
 
-Write-Host "Launching sandbox as $Username in $sandboxRoot" -ForegroundColor Green
-$cred = New-Object System.Management.Automation.PSCredential("$env:COMPUTERNAME\$Username", $secPass)
+Write-Host "Launching sandbox in $sandboxRoot" -ForegroundColor Green
 $outputFile = Join-Path $sandboxRoot "ps_output.txt"
-Start-Process -FilePath pwsh.exe -ArgumentList "-NoProfile","-Command","Set-Location -LiteralPath '$sandboxRoot'; $cmdLine" -Credential $cred -NoNewWindow -Wait -RedirectStandardOutput $outputFile -RedirectStandardError $outputFile
+Start-Process -FilePath pwsh.exe -ArgumentList "-NoProfile","-Command","Set-Location -LiteralPath '$sandboxRoot'; $cmdLine" -NoNewWindow -Wait -RedirectStandardOutput $outputFile -RedirectStandardError $outputFile
 Get-Content $outputFile

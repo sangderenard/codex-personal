@@ -2,23 +2,21 @@
 setlocal EnableDelayedExpansion
 
 :: Configuration
-set "SANDBOX_USER=SandboxUser"
-set "SANDBOX_PASS=YourStrongP@ssw0rd"
-set "SANDBOX_ROOT=%CD%\sandbox"
+set "SANDBOX_ROOT=C:\Users\%USERNAME%\sandbox"
 set "DEPTH=3"
-
-:: Create the user if needed
-net user "%SANDBOX_USER%" "%SANDBOX_PASS%" /add /Y /expires:never /passwordchg:no /passwordreq:yes
-net localgroup Users "%SANDBOX_USER%" /add /Y
 
 :: Prepare sandbox root
 if exist "%SANDBOX_ROOT%" rd /s /q "%SANDBOX_ROOT%"
 md "%SANDBOX_ROOT%"
 
 rem Set the sandbox directory owner before adjusting permissions
-icacls "%SANDBOX_ROOT%" /setowner %SANDBOX_USER% /T /C
 icacls "%SANDBOX_ROOT%" /inheritance:r
-icacls "%SANDBOX_ROOT%" /grant:r %SANDBOX_USER%:(OI)(CI)F
+icacls "%SANDBOX_ROOT%" /grant:r %USERNAME%:(OI)(CI)F /T /C
+if %errorlevel% neq 0 (
+    echo Error: Failed to grant permissions to %USERNAME% for %SANDBOX_ROOT%.
+    exit /B 1
+)
+
 :: Build nested directories under sandbox root
 set "PREV=%SANDBOX_ROOT%"
 for /L %%i in (1,1,%DEPTH%) do (
@@ -35,13 +33,22 @@ if %errorlevel%==0 (
     exit /B 1
 )
 
-:: Launch command under restricted user
-echo Launching sandbox as %SANDBOX_USER% in %SANDBOX_ROOT%...
+:: Launch command under restricted environment
+echo Launching sandbox in %SANDBOX_ROOT%...
 echo Permissions for %SANDBOX_ROOT%:
 icacls "%SANDBOX_ROOT%"
-whoami
+
+:: Capture the current user and runner information
+for /f "tokens=*" %%u in ('whoami /user') do set "environ_user=%%u"
+set "runner=%USERNAME%"
+
+:: Print the captured information
+echo Running as user: %runner%
+echo Environment user: %environ_user%
+
 echo Running command: %CMDLINE%
-runas /user:%COMPUTERNAME%\%SANDBOX_USER% "cd \"%SANDBOX_ROOT%\"; %CMDLINE% > \"%SANDBOX_ROOT%\\cmd_output.txt\" 2>&1"
+cd "%SANDBOX_ROOT%"
+%CMDLINE% > "%SANDBOX_ROOT%\cmd_output.txt" 2>&1
 echo Command executed. Output saved to %SANDBOX_ROOT%\cmd_output.txt
 if exist "%SANDBOX_ROOT%\cmd_output.txt" (
     type "%SANDBOX_ROOT%\cmd_output.txt"

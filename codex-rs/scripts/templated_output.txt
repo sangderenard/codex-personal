@@ -1,26 +1,30 @@
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Your command was: echo
-Threat Information: N/A
-Categorical Threat Weights: []
-Translated Command: echo
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-processed file: C:\dev\Powershell\codex\codex-rs\sandbox
+
+Output from sandbox: 
+processed file: C:\Users\alber\sandbox
 Successfully processed 1 files; Failed processing 0 files
-Successfully processed 0 files; Failed processing 1 files
-0 File(s) copied
-0 File(s) copied
-0 File(s) copied
-Launching sandbox as SandboxUser in C:\dev\Powershell\codex\codex-rs\sandbox...
-Permissions for C:\dev\Powershell\codex\codex-rs\sandbox:
-C:\dev\Powershell\codex\codex-rs\sandbox 
+processed file: C:\Users\alber\sandbox
 Successfully processed 1 files; Failed processing 0 files
-desktop-lckqh36\alber
-Running command: echo "Hello, world"
-Command executed. Output saved to C:\dev\Powershell\codex\codex-rs\sandbox\cmd_output.txt
-Error: Output file "C:\dev\Powershell\codex\codex-rs\sandbox\cmd_output.txt" does not exist.
+0 File(s) copied
+0 File(s) copied
+0 File(s) copied
+Launching sandbox in C:\Users\alber\sandbox...
+Permissions for C:\Users\alber\sandbox:
+C:\Users\alber\sandbox DESKTOP-LCKQH36\alber:(OI)(CI)(F)
+
+Successfully processed 1 files; Failed processing 0 files
+Running as user: alber
+Environment user: desktop-lckqh36\alber S-1-5-21-2424011954-272406069-995595398-1001
+Running command: cd
+Command executed. Output saved to C:\Users\alber\sandbox\cmd_output.txt
+C:\Users\alber\sandbox
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The original command was: pwd
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+This was translated into: cd
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Your command was: pwd
+Threat Information: N/A
+Categorical Threat Weights: []
+Translated Command: cd
+
