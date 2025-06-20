@@ -34,6 +34,7 @@ pub use crate::black_box::black_box::{
     enable_black_box_sandbox,
     disable_black_box_sandbox,
 };
+use crate::config_types::ShellEnvironmentPolicy;
 use crate::utils::spawn_wrapper::wrap_spawn_result;
 use internal_commands::is_internal_command;
 
@@ -194,12 +195,22 @@ pub async fn process_exec_tool_call(
     let raw_output_result = match sandbox_type {
         SandboxType::None => exec(params, sandbox_policy, ctrl_c, Some(translation_result.clone())).await,
         SandboxType::BlackBox => {
-            Ok(RawExecToolCallOutput {
-                exit_status: synthetic_exit_status(0),
-                stdout: Vec::new(),
-                stderr: Vec::new(),
-                translation_result: Some(translation_result.clone()),
-            })
+            let ExecParams {
+                command,
+                cwd,
+                timeout_ms,
+                env: _,
+            } = params;
+            let (child, translation_result) = spawn_command_under_black_box(
+                command,
+                sandbox_policy.clone(),
+                cwd,
+                StdioPolicy::RedirectForShellTool,
+                ShellEnvironmentPolicy::default(),
+                Some(translation_result.clone()),
+            )
+            .await?;
+            consume_truncated_output(child, ctrl_c, timeout_ms, translation_result).await
         }
         SandboxType::MacosSeatbelt => {
             let ExecParams {
