@@ -245,6 +245,15 @@ pub fn normalize_path(path: &str) -> PathBuf {
 
 /// Stub for normalizing paths in commands.
 pub fn normalize_command_paths(command: &str) -> String {
-    // TODO: Implement logic to determine paths from flags and normalize them.
-    command.to_string()
+    command
+        .split_whitespace()
+        .map(|token| {
+            if token.contains('/') || token.contains('\\') {
+                normalize_path(token).to_string_lossy().into_owned()
+            } else {
+                token.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
