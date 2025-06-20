@@ -6,6 +6,7 @@ use codex_core::config::Config;
 use codex_core::protocol::AgentMessageEvent;
 use codex_core::protocol::AgentReasoningEvent;
 use codex_core::protocol::ApplyPatchApprovalRequestEvent;
+use codex_core::protocol::BackgroundEventEvent;
 use codex_core::protocol::ErrorEvent;
 use codex_core::protocol::Event;
 use codex_core::protocol::EventMsg;
@@ -345,6 +346,10 @@ impl ChatWidget<'_> {
                 let McpToolCallEndEvent { call_id, result } = mcp_tool_call_end_event;
                 self.conversation_history
                     .record_completed_mcp_tool_call(call_id, success, result);
+                self.request_redraw();
+            }
+            EventMsg::BackgroundEvent(BackgroundEventEvent { message }) => {
+                self.conversation_history.add_background_event(message);
                 self.request_redraw();
             }
             EventMsg::GetHistoryEntryResponse(event) => {
