@@ -53,7 +53,7 @@ pub fn interact_with_dependency(
 ) -> Result<(), String> {
     if is_internal_command(command) {
         let setting = dependency.get_setting("example_setting")?;
-        println!("Interacting with dependency using setting: {}", setting);
+        
         dependency.set_setting("example_setting", "new_value")?;
         Ok(())
     } else {
@@ -150,6 +150,48 @@ pub fn codex_set_sandbox_policy(_policy: &str) -> Result<(), String> {
 /// Return the list of known internal commands.
 pub fn codex_commands() -> Vec<&'static str> {
     INTERNAL_COMMANDS.iter().copied().collect()
+}
+
+/// Retrieve the function corresponding to an internal command string.
+/// Returns `None` if the command is not internal.
+pub fn get_internal_command_function(
+    command: &str,
+) -> Option<fn(args: &[String], cwd: PathBuf) -> std::io::Result<InternalCommandOutput>> {
+    match command {
+        "codex_fetch_docs" => Some(|_, _| {
+            let docs = codex_fetch_docs()?;
+            Ok(InternalCommandOutput {
+                stdout: format!("{:?}", docs),
+                stderr: String::new(),
+            })
+        }),
+        "codex_list_docs" => Some(|_, _| {
+            let docs = codex_list_docs()?;
+            Ok(InternalCommandOutput {
+                stdout: format!("{:?}", docs),
+                stderr: String::new(),
+            })
+        }),
+        "codex_read_doc" => Some(|args, _| {
+            if let Some(name) = args.get(0) {
+                let content = codex_read_doc(name)?;
+                Ok(InternalCommandOutput {
+                    stdout: content,
+                    stderr: String::new(),
+                })
+            } else {
+                Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Missing document name"))
+            }
+        }),
+        // ... Add other internal commands here ...
+        _ => None,
+    }
+}
+
+/// Struct to represent the output of an internal command.
+pub struct InternalCommandOutput {
+    pub stdout: String,
+    pub stderr: String,
 }
 
 #[cfg(test)]

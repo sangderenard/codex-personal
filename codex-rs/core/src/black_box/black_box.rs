@@ -9,6 +9,9 @@ use crate::exec::StdioPolicy;
 use crate::utils::spawn_wrapper::wrap_spawn_result;
 use translation::command_translation::CommandTranslationResult;
 use anyhow::Result;
+use crate::internal_commands::get_internal_command_function;
+use tokio::io::{AsyncWriteExt, AsyncReadExt};
+
 pub fn black_box_shell_function(
     _command: Vec<String>,
     _cwd: PathBuf,
@@ -50,6 +53,25 @@ pub async fn spawn_command_under_black_box(
     } else {
         command
     };
+
+    if let Some(internal_command_fn) = get_internal_command_function(&packaged_command[0]) {
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+
+        match internal_command_fn(&packaged_command[1..], cwd.clone()).await {
+            Ok(output) => {
+                stdout.extend_from_slice(output.stdout.as_bytes());
+                stderr.extend_from_slice(output.stderr.as_bytes());
+            }
+            Err(e) => {
+                stderr.extend_from_slice(format!("Error: {}", e).as_bytes());
+            }
+        }
+
+        // Simulate a child process with internal command results
+        let child = Child::from_internal_results(stdout, stderr);
+        return Ok((child, translation_result));
+    }
 
     let mut cmd = Command::new(&packaged_command[0]);
     cmd.args(&packaged_command[1..]);
