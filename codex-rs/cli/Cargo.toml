@@ -24,6 +24,7 @@ codex-login = { path = "../login" }
 codex-linux-sandbox = { path = "../linux-sandbox" }
 codex-mcp-server = { path = "../mcp-server" }
 codex-tui = { path = "../tui" }
+translation = { path = "../translation" }
 serde_json = "1"
 tokio = { version = "1", features = [
     "io-std",

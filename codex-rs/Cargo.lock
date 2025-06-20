@@ -589,6 +589,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "translation",
 ]
 
 [[package]]

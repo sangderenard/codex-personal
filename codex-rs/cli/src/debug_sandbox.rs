@@ -19,6 +19,7 @@ use crate::ApiCommand;
 use crate::LandlockCommand;
 use crate::SeatbeltCommand;
 use crate::exit_status::handle_exit_status;
+use translation::{DEFAULT_TRANSLATOR, OPERATING_SHELL, initialize};
 
 pub async fn run_command_under_seatbelt(
     command: SeatbeltCommand,
@@ -139,13 +140,29 @@ async fn run_command_under_sandbox(
     let stdio_policy = StdioPolicy::Inherit;
     let env = create_env(&config.shell_environment_policy);
 
+    if DEFAULT_TRANSLATOR.get().is_none() {
+        initialize(std::env::consts::OS);
+    }
+    let translation_result = {
+        let mut guard = DEFAULT_TRANSLATOR
+            .get()
+            .expect("translator initialized")
+            .lock()
+            .expect("lock translator");
+        let shell = OPERATING_SHELL
+            .get()
+            .map(String::as_str)
+            .unwrap_or(std::env::consts::OS);
+        guard.translate_command(&command[0], shell, "N/A", &[])
+    };
+
     let mut child = match sandbox_type {
         SandboxType::LinuxSeccomp => {
             #[expect(clippy::expect_used)]
             let codex_linux_sandbox_exe = config
                 .codex_linux_sandbox_exe
                 .expect("codex-linux-sandbox executable not found");
-            let (child, translation_result) = spawn_command_under_linux_sandbox(
+            let (child, _returned_tr) = spawn_command_under_linux_sandbox(
                 codex_linux_sandbox_exe,
                 command,
                 &config.sandbox_policy,
@@ -162,7 +179,7 @@ async fn run_command_under_sandbox(
             let codex_linux_sandbox_exe = config
                 .codex_linux_sandbox_exe
                 .expect("codex-linux-sandbox executable not found");
-            let (child, translation_result) = spawn_command_under_linux_sandbox(
+            let (child, _returned_tr) = spawn_command_under_linux_sandbox(
                 codex_linux_sandbox_exe,
                 command,
                 &config.sandbox_policy,
@@ -175,7 +192,7 @@ async fn run_command_under_sandbox(
             child
         }
         SandboxType::Seatbelt => {
-            let (child, translation_result) = spawn_command_under_seatbelt(
+            let (child, _returned_tr) = spawn_command_under_seatbelt(
                 command,
                 &config.sandbox_policy,
                 cwd,
@@ -187,7 +204,7 @@ async fn run_command_under_sandbox(
             child
         }
         SandboxType::BlackBox => {
-            let (child, translation_result) = spawn_command_under_black_box(
+            let (child, _returned_tr) = spawn_command_under_black_box(
                 command,
                 config.sandbox_policy.clone(),
                 cwd,
@@ -199,7 +216,7 @@ async fn run_command_under_sandbox(
             child
         }
         SandboxType::Win64Cmd => {
-            let (child, translation_result) = spawn_command_under_win64_cmd(
+            let (child, _returned_tr) = spawn_command_under_win64_cmd(
                 command,
                 &config.sandbox_policy,
                 cwd,
@@ -211,7 +228,7 @@ async fn run_command_under_sandbox(
             child
         }
         SandboxType::Win64Ps => {
-            let (mut child, translation_result) = spawn_command_under_win64_ps(
+            let (mut child, _returned_tr) = spawn_command_under_win64_ps(
                 command,
                 &config.sandbox_policy,
                 cwd,
@@ -230,6 +247,7 @@ async fn run_command_under_sandbox(
                 stdio_policy,
                 env,
                 None,
+                Some(translation_result.clone()),
             )
             .await?;
             println!("{}", String::from_utf8_lossy(&output.stdout));
@@ -260,7 +278,23 @@ pub async fn run_command_under_win64_cmd(
     let env = create_env(&ShellEnvironmentPolicy::default());
     let stdio_policy = StdioPolicy::Inherit;
 
-    let (child, translation_result) = spawn_command_under_win64_cmd(
+    if DEFAULT_TRANSLATOR.get().is_none() {
+        initialize(std::env::consts::OS);
+    }
+    let translation_result = {
+        let mut guard = DEFAULT_TRANSLATOR
+            .get()
+            .expect("translator initialized")
+            .lock()
+            .expect("lock translator");
+        let shell = OPERATING_SHELL
+            .get()
+            .map(String::as_str)
+            .unwrap_or(std::env::consts::OS);
+        guard.translate_command(&command[0], shell, "N/A", &[])
+    };
+
+    let (mut child, _returned_tr) = spawn_command_under_win64_cmd(
         command,
         &sandbox_policy,
         cwd,
@@ -282,7 +316,23 @@ pub async fn run_command_under_win64_ps(
     let env = create_env(&ShellEnvironmentPolicy::default());
     let stdio_policy = StdioPolicy::Inherit;
 
-    let (mut child, translation_result) = spawn_command_under_win64_ps(
+    if DEFAULT_TRANSLATOR.get().is_none() {
+        initialize(std::env::consts::OS);
+    }
+    let translation_result = {
+        let mut guard = DEFAULT_TRANSLATOR
+            .get()
+            .expect("translator initialized")
+            .lock()
+            .expect("lock translator");
+        let shell = OPERATING_SHELL
+            .get()
+            .map(String::as_str)
+            .unwrap_or(std::env::consts::OS);
+        guard.translate_command(&command[0], shell, "N/A", &[])
+    };
+
+    let (mut child, _returned_tr) = spawn_command_under_win64_ps(
         command,
         &sandbox_policy,
         cwd,
