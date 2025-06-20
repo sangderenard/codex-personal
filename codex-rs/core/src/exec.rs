@@ -1,7 +1,7 @@
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
@@ -186,7 +186,7 @@ pub async fn process_exec_tool_call(
     params.command[0] = translated_or_original;
     
     let mut sandbox_type = sandbox_type;
-    if CODEX_BLACK_BOX_SANDBOX_STATE == determine_sandbox_state() {
+    if INTERNAL_COMMANDS.contains(params.command[0].as_str()) || CODEX_BLACK_BOX_SANDBOX_STATE == determine_sandbox_state() {
         sandbox_type = SandboxType::BlackBox;
     }
 
@@ -1001,6 +1001,30 @@ fn synthetic_exit_status(code: i32) -> ExitStatus {
     use std::os::windows::process::ExitStatusExt;
     #[expect(clippy::unwrap_used)]
     std::process::ExitStatus::from_raw(code.try_into().unwrap())
+}
+
+use std::collections::HashSet;
+
+lazy_static! {
+    static ref INTERNAL_COMMANDS: HashSet<&'static str> = {
+        let mut commands = HashSet::new();
+        commands.insert("codex_fetch_docs");
+        commands.insert("codex_list_docs");
+        commands.insert("codex_read_doc");
+        commands.insert("codex_delete_doc");
+        commands.insert("codex_update_doc");
+        commands.insert("codex_create_doc");
+        commands.insert("codex_system_exec");
+        commands.insert("codex_reset_translator");
+        commands.insert("codex_user_exec_dialog");
+        commands.insert("codex_user_fork_exec");
+        commands.insert("codex_help");
+        commands.insert("codex_truncatoin_mode");
+        commands.insert("codex_set_pallette");
+        commands.insert("codex_set_sandbox_policy");
+        commands.insert("codex_commands");
+        commands
+    };
 }
 
 

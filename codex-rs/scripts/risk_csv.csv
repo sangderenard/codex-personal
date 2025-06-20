@@ -1,3 +1,4 @@
+<contents of risk_csv.csv>
 Environment,Command,Argument,Data loss,Unauthorized Access,Data Integrity,Privacy Breach,Service Disruption
 linux,rm,-rf /,5,1,5,2,3
 linux,cp,–force,2,1,2,1,1
