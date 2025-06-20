@@ -33,4 +33,6 @@ if ($cmdLine -match '\bcd\s+\.\.') {
 
 Write-Host "Launching sandbox as $Username in $sandboxRoot" -ForegroundColor Green
 $cred = New-Object System.Management.Automation.PSCredential("$env:COMPUTERNAME\$Username", $secPass)
-Start-Process -FilePath pwsh.exe -ArgumentList "-NoExit","-Command","Set-Location -LiteralPath '$sandboxRoot'; $cmdLine" -Credential $cred
+$outputFile = Join-Path $sandboxRoot "ps_output.txt"
+Start-Process -FilePath pwsh.exe -ArgumentList "-NoProfile","-Command","Set-Location -LiteralPath '$sandboxRoot'; $cmdLine" -Credential $cred -NoNewWindow -Wait -RedirectStandardOutput $outputFile -RedirectStandardError $outputFile
+Get-Content $outputFile
