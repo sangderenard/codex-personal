@@ -1,0 +1,332 @@
+{
+  "Add-Content": {
+    "windows": "Add-Content"
+  },
+  "Add-LocalGroupMember": {
+    "windows": "Add-LocalGroupMember"
+  },
+  "Clear-EventLog": {
+    "windows": "Clear-EventLog"
+  },
+  "Copy-Item": {
+    "windows": "Copy-Item"
+  },
+  "Get-ChildItem": {
+    "windows": "Get-ChildItem"
+  },
+  "Get-Command": {
+    "windows": "Get-Command"
+  },
+  "Get-Content": {
+    "windows": "Get-Content"
+  },
+  "Get-EventLog": {
+    "windows": "Get-EventLog"
+  },
+  "Get-Help": {
+    "windows": "Get-Help"
+  },
+  "Get-NetIPAddress": {
+    "windows": "Get-NetIPAddress"
+  },
+  "Get-Process": {
+    "windows": "Get-Process"
+  },
+  "Get-Service": {
+    "windows": "Get-Service"
+  },
+  "Import-Module": {
+    "windows": "Import-Module"
+  },
+  "Invoke-WebRequest": {
+    "windows": "Invoke-WebRequest"
+  },
+  "Move-Item": {
+    "windows": "Move-Item"
+  },
+  "New-Item": {
+    "windows": "New-Item"
+  },
+  "New-LocalUser": {
+    "windows": "New-LocalUser"
+  },
+  "Remove-Item": {
+    "windows": "Remove-Item"
+  },
+  "Rename-Item": {
+    "windows": "Rename-Item"
+  },
+  "Restart-Computer": {
+    "windows": "Restart-Computer"
+  },
+  "Restart-Service": {
+    "windows": "Restart-Service"
+  },
+  "Set-Content": {
+    "windows": "Set-Content"
+  },
+  "Set-ExecutionPolicy": {
+    "windows": "Set-ExecutionPolicy"
+  },
+  "Set-ItemProperty": {
+    "windows": "Set-ItemProperty"
+  },
+  "Shutdown-Computer": {
+    "windows": "Shutdown-Computer"
+  },
+  "Start-Service": {
+    "windows": "Start-Service"
+  },
+  "Stop-Process": {
+    "windows": "Stop-Process"
+  },
+  "Stop-Service": {
+    "windows": "Stop-Service"
+  },
+  "Test-Connection": {
+    "windows": "Test-Connection"
+  },
+  "apt-get": {
+    "linux": "apt-get"
+  },
+  "attrib": {
+    "windows": "attrib"
+  },
+  "brew": {
+    "macos": "brew"
+  },
+  "caffeinate": {
+    "macos": "caffeinate"
+  },
+  "cat": {
+    "linux": "cat",
+    "macos": "cat",
+    "windows": "type"
+  },
+  "chkdsk": {
+    "windows": "chkdsk"
+  },
+  "chmod": {
+    "linux": "chmod",
+    "macos": "chmod"
+  },
+  "chown": {
+    "linux": "chown",
+    "macos": "chown"
+  },
+  "clear": {
+    "linux": "clear",
+    "macos": "clear",
+    "windows": "cls"
+  },
+  "copy": {
+    "windows": "copy"
+  },
+  "cp": {
+    "linux": "cp",
+    "macos": "cp",
+    "windows": "copy"
+  },
+  "curl": {
+    "linux": "curl"
+  },
+  "dd": {
+    "linux": "dd"
+  },
+  "defaults": {
+    "macos": "defaults"
+  },
+  "del": {
+    "windows": "del"
+  },
+  "docker": {
+    "linux": "docker"
+  },
+  "echo": {
+    "linux": "echo",
+    "macos": "echo",
+    "windows": "echo"
+  },
+  "fdisk": {
+    "linux": "fdisk"
+  },
+  "findstr": {
+    "windows": "findstr"
+  },
+  "format": {
+    "windows": "format"
+  },
+  "grep": {
+    "linux": "grep",
+    "macos": "grep",
+    "windows": "findstr"
+  },
+  "gzip": {
+    "linux": "gzip"
+  },
+  "ifconfig": {
+    "linux": "ifconfig"
+  },
+  "ip": {
+    "linux": "ip"
+  },
+  "ipconfig": {
+    "windows": "ipconfig"
+  },
+  "iptables": {
+    "linux": "iptables"
+  },
+  "journalctl": {
+    "linux": "journalctl"
+  },
+  "kill": {
+    "linux": "kill",
+    "macos": "kill",
+    "windows": "taskkill"
+  },
+  "ls": {
+    "linux": "ls",
+    "macos": "ls",
+    "windows": "dir"
+  },
+  "man": {
+    "linux": "man",
+    "macos": "man",
+    "windows": "help"
+  },
+  "md": {
+    "windows": "md"
+  },
+  "mkdir": {
+    "linux": "mkdir",
+    "macos": "mkdir",
+    "windows": "mkdir"
+  },
+  "mkfs": {
+    "linux": "mkfs"
+  },
+  "mount": {
+    "linux": "mount"
+  },
+  "move": {
+    "windows": "move"
+  },
+  "mv": {
+    "linux": "mv",
+    "macos": "mv",
+    "windows": "move"
+  },
+  "net localgroup": {
+    "windows": "net localgroup"
+  },
+  "net user": {
+    "windows": "net user"
+  },
+  "netstat": {
+    "linux": "netstat"
+  },
+  "networksetup": {
+    "macos": "networksetup"
+  },
+  "open": {
+    "macos": "open"
+  },
+  "parted": {
+    "linux": "parted"
+  },
+  "pbcopy": {
+    "macos": "pbcopy"
+  },
+  "pbpaste": {
+    "macos": "pbpaste"
+  },
+  "ping": {
+    "linux": "ping",
+    "windows": "ping"
+  },
+  "ps": {
+    "linux": "ps",
+    "macos": "ps",
+    "windows": "tasklist"
+  },
+  "pwd": {
+    "linux": "pwd",
+    "macos": "pwd",
+    "windows": "cd"
+  },
+  "rd": {
+    "windows": "rd"
+  },
+  "ren": {
+    "windows": "ren"
+  },
+  "rm": {
+    "linux": "rm",
+    "macos": "rm",
+    "windows": "del"
+  },
+  "rmdir": {
+    "linux": "rmdir",
+    "macos": "rmdir",
+    "windows": "rmdir"
+  },
+  "route": {
+    "windows": "route"
+  },
+  "say": {
+    "macos": "say"
+  },
+  "sc": {
+    "windows": "sc"
+  },
+  "scp": {
+    "linux": "scp"
+  },
+  "shutdown": {
+    "windows": "shutdown"
+  },
+  "softwareupdate": {
+    "macos": "softwareupdate"
+  },
+  "spctl": {
+    "macos": "spctl"
+  },
+  "ssh": {
+    "linux": "ssh"
+  },
+  "systemctl": {
+    "linux": "systemctl"
+  },
+  "tar": {
+    "linux": "tar"
+  },
+  "taskkill": {
+    "windows": "taskkill"
+  },
+  "tasklist": {
+    "windows": "tasklist"
+  },
+  "traceroute": {
+    "linux": "traceroute"
+  },
+  "tracert": {
+    "windows": "tracert"
+  },
+  "type": {
+    "windows": "type"
+  },
+  "umount": {
+    "linux": "umount"
+  },
+  "wget": {
+    "linux": "wget"
+  },
+  "which": {
+    "linux": "which",
+    "macos": "which",
+    "windows": "where"
+  },
+  "yum": {
+    "linux": "yum"
+  }
+}

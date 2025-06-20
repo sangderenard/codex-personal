@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::process::Command;
 use std::path::{Path, PathBuf};
+use std::fs;
 
 const MAX_TRANSLATION_WARNINGS: usize = 3; // Define constant for max warnings
 
@@ -16,7 +17,8 @@ pub struct CommandTranslation {
     warnings: usize,
 }
 
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
+use serde_json;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CommandTranslationResult {
@@ -31,8 +33,24 @@ impl CommandTranslator {
             translations: HashMap::new(),
             max_warnings: MAX_TRANSLATION_WARNINGS,
         };
-        translator.insert_default_map();
+        translator.load_translations_from_file();
         translator
+    }
+
+    fn load_translations_from_file(&mut self) {
+        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let scripts_dir = manifest_dir.parent().expect("crate should have parent").join("scripts");
+        let file_path = scripts_dir.join("command_translations.json");
+
+        if let Ok(contents) = fs::read_to_string(&file_path) {
+            if let Ok(map) = serde_json::from_str::<HashMap<String, HashMap<String, String>>>(&contents) {
+                for (cmd, os_map) in map {
+                    self.add_translation(&cmd, os_map);
+                }
+                return;
+            }
+        }
+        self.insert_default_map();
     }
 
     fn insert_default_map(&mut self) {
