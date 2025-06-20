@@ -383,7 +383,8 @@ pub fn load_risk_tree(path: &Path) -> anyhow::Result<RiskTree> {
         let cmd = fields[1].trim().to_string();
         let flag = fields[2].trim().to_string();
         let mut vec = Vec::new();
-        for f in &fields[3..] {
+        let metrics_end = 3 + DEFAULT_CATEGORY_WEIGHTS.len();
+        for f in &fields[3..metrics_end.min(fields.len())] {
             if let Ok(num) = f.trim().parse::<f64>() {
                 vec.push(num);
             }
