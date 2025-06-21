@@ -621,6 +621,7 @@ dependencies = [
  "fs-err",
  "fs2",
  "futures",
+ "internal_commands",
  "landlock",
  "maplit",
  "mcp-types",
@@ -2101,6 +2102,14 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.103",
+]
+
+[[package]]
+name = "internal_commands"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "translation",
 ]
 
 [[package]]

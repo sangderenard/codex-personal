@@ -1,5 +1,4 @@
-
-Output from sandbox: 
+Output from sandbox:
 processed file: C:\Users\alber\sandbox
 Successfully processed 1 files; Failed processing 0 files
 processed file: C:\Users\alber\sandbox
@@ -14,17 +13,15 @@ C:\Users\alber\sandbox DESKTOP-LCKQH36\alber:(OI)(CI)(F)
 Successfully processed 1 files; Failed processing 0 files
 Running as user: alber
 Environment user: desktop-lckqh36\alber S-1-5-21-2424011954-272406069-995595398-1001
-Running command: cd
+Running command: rg --files -g *.rs
 Command executed. Output saved to C:\Users\alber\sandbox\cmd_output.txt
-C:\Users\alber\sandbox
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-The original command was: pwd
+The original command was: rg
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-This was translated into: cd
+This was translated into: 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Your command was: pwd
+Your command was: rg
 Threat Information: N/A
 Categorical Threat Weights: []
-Translated Command: cd
-
+No translation available.

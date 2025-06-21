@@ -3,8 +3,6 @@ name = "internal_commands"
 version = "0.1.0"
 edition = "2021"
 
-[workspace]
-
 [dependencies]
 lazy_static = "1.4.0"
 translation = { path = "../translation" }

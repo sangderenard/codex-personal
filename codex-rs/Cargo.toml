@@ -15,6 +15,7 @@ members = [
     "mcp-types",
     "tui",
     "translation",
+    "internal_commands",
 ]
 
 [workspace.package]

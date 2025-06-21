@@ -9,7 +9,7 @@ use crate::exec::StdioPolicy;
 use crate::utils::spawn_wrapper::wrap_spawn_result;
 use translation::command_translation::CommandTranslationResult;
 use anyhow::Result;
-use crate::internal_commands::get_internal_command_function;
+use internal_commands::get_internal_command_function;
 
 pub fn black_box_shell_function(
     _command: Vec<String>,
@@ -65,8 +65,9 @@ pub async fn spawn_command_under_black_box(
 
     if let Some(internal_command_fn) = get_internal_command_function(&packaged_command[0]) {
         let result = internal_command_fn(&packaged_command[1..], cwd.clone())?;
-        let child = spawn_internal_command_child(result.stdout, result.stderr)?;
-        return Ok((child, translation_result));
+
+        // Directly return the results of the internal command
+        return Ok((Child::from_internal_results(result.stdout, result.stderr), translation_result));
     }
 
     let mut cmd = Command::new(&packaged_command[0]);
