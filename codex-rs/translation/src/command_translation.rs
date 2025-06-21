@@ -17,7 +17,7 @@ pub struct CommandTranslation {
     warnings: usize,
 }
 
-use serde::{Serialize, Deserialize};
+use serde::Serialize;
 use serde_json;
 
 #[derive(Debug, Clone, Serialize)]
@@ -34,6 +34,7 @@ impl CommandTranslator {
             max_warnings: MAX_TRANSLATION_WARNINGS,
         };
         translator.load_translations_from_file();
+        translator.load_translations_from_risk_csv();
         translator
     }
 
@@ -51,6 +52,46 @@ impl CommandTranslator {
             }
         }
         self.insert_default_map();
+    }
+
+    fn load_translations_from_risk_csv(&mut self) {
+        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let scripts_dir = manifest_dir.parent().expect("crate should have parent").join("scripts");
+        let file_path = scripts_dir.join("risk_csv.csv");
+
+        if let Ok(contents) = fs::read_to_string(&file_path) {
+            for line in contents.lines().skip(1) {
+                let fields: Vec<&str> = line.split(',').collect();
+                if fields.len() < 13 {
+                    continue;
+                }
+                let binary = fields[1].trim();
+                let mut map = HashMap::new();
+                let macos = fields[8].trim();
+                if macos != "none" && !macos.is_empty() {
+                    map.insert("macos".to_string(), macos.to_string());
+                }
+                let linux = fields[9].trim();
+                if linux != "none" && !linux.is_empty() {
+                    map.insert("linux".to_string(), linux.to_string());
+                }
+                let win_cmd = fields[10].trim();
+                if win_cmd != "none" && !win_cmd.is_empty() {
+                    map.insert("windows".to_string(), win_cmd.to_string());
+                }
+                let win_ps = fields[11].trim();
+                if win_ps != "none" && !win_ps.is_empty() {
+                    map.insert("powershell".to_string(), win_ps.to_string());
+                }
+                let win_wsl = fields[12].trim();
+                if win_wsl != "none" && !win_wsl.is_empty() {
+                    map.insert("wsl".to_string(), win_wsl.to_string());
+                }
+                if !map.is_empty() {
+                    self.add_translation(binary, map);
+                }
+            }
+        }
     }
 
     fn insert_default_map(&mut self) {
