@@ -10,6 +10,7 @@ use codex_core::exec::spawn_command_under_seatbelt;
 use codex_core::exec::spawn_command_under_win64_cmd;
 use codex_core::exec::spawn_command_under_win64_ps;
 use codex_core::black_box::black_box::spawn_command_under_black_box;
+use codex_core::utils::child_ext::{ChildLike, BlackBoxChild};
 use crate::BlackBoxCommand;
 use codex_core::exec::spawn_command_under_api;
 use codex_core::exec_env::create_env;
@@ -172,7 +173,7 @@ async fn run_command_under_sandbox(
                 Some(translation_result.clone()),
             )
             .await?;
-            child
+            BlackBoxChild::Real(child)
         }
         SandboxType::Landlock => {
             #[expect(clippy::expect_used)]
@@ -189,7 +190,7 @@ async fn run_command_under_sandbox(
                 Some(translation_result.clone()),
             )
             .await?;
-            child
+            BlackBoxChild::Real(child)
         }
         SandboxType::Seatbelt => {
             let (child, _returned_tr) = spawn_command_under_seatbelt(
@@ -201,7 +202,7 @@ async fn run_command_under_sandbox(
                 Some(translation_result.clone()),
             )
             .await?;
-            child
+            BlackBoxChild::Real(child)
         }
         SandboxType::BlackBox => {
             let (child, _returned_tr) = spawn_command_under_black_box(
@@ -225,7 +226,7 @@ async fn run_command_under_sandbox(
                 Some(translation_result.clone()),
             )
             .await?;
-            child
+            BlackBoxChild::Real(child)
         }
         SandboxType::Win64Ps => {
             let (child, _returned_tr) = spawn_command_under_win64_ps(
@@ -237,7 +238,7 @@ async fn run_command_under_sandbox(
                 Some(translation_result.clone()),
             )
             .await?;
-            child
+            BlackBoxChild::Real(child)
         }
         SandboxType::Api => {
             let output = spawn_command_under_api(
@@ -255,7 +256,7 @@ async fn run_command_under_sandbox(
         }
     };
 
-    let status = child.wait().await?;
+    let status = child.wait_future().await?;
     handle_exit_status(status);
 }
 

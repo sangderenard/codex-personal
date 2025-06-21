@@ -867,18 +867,20 @@ async fn spawn_child_async(
 
 /// Consumes the output of a child process, truncating it so it is suitable for
 /// use as the output of a `shell` tool call. Also enforces specified timeout.
-pub(crate) async fn consume_truncated_output(
-    mut child: Child,
+use crate::utils::child_ext::ChildLike;
+
+pub(crate) async fn consume_truncated_output<C: ChildLike>(
+    mut child: C,
     ctrl_c: Arc<Notify>,
     timeout_ms: Option<u64>,
     translation_result: Option<translation::command_translation::CommandTranslationResult>,
 ) -> Result<RawExecToolCallOutput> {
-    let stdout_reader = child.stdout.take().ok_or_else(|| {
+    let stdout_reader = child.take_stdout().ok_or_else(|| {
         CodexErr::Io(io::Error::other(
             "stdout pipe was unexpectedly not available",
         ))
     })?;
-    let stderr_reader = child.stderr.take().ok_or_else(|| {
+    let stderr_reader = child.take_stderr().ok_or_else(|| {
         CodexErr::Io(io::Error::other(
             "stderr pipe was unexpectedly not available",
         ))
@@ -916,7 +918,7 @@ pub(crate) async fn consume_truncated_output(
     let interrupted = ctrl_c.notified();
     let timeout = Duration::from_millis(timeout_ms.unwrap_or(DEFAULT_TIMEOUT_MS));
     let exit_status = tokio::select! {
-        result = tokio::time::timeout(timeout, child.wait()) => {
+        result = tokio::time::timeout(timeout, child.wait_future()) => {
             match result {
                 Ok(Ok(exit_status)) => exit_status,
                 Ok(e) => e?,
