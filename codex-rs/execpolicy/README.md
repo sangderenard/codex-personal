@@ -7,6 +7,20 @@ The goal of this library is to classify a proposed [`execv(3)`](https://linux.di
 - `forbidden` The command is not allowed to be run.
 - `unverified` The safety cannot be determined: make the user decide.
 
+## Supported Shells
+
+The policy covers commands in the following shell environments, which
+matches the list supported by the translation crate:
+
+- CMD
+- PowerShell
+- Generic API
+- Dummy (some are not implemented).
+- macOS (Seatbelt)
+- Linux (Landlock)
+- Windows Subsystem for Linux (WSL)
+
+
 (\*) Whether an `execv(3)` call should be considered "safe" often requires additional context beyond the arguments to `execv()` itself. For example, if you trust an autonomous software agent to write files in your source tree, then deciding whether `/bin/cp foo bar` is "safe" depends on `getcwd(3)` for the calling process as well as the `realpath` of `foo` and `bar` when resolved against `getcwd()`.
 To that end, rather than returning a boolean, the validator returns a structured result that the client is expected to use to determine the "safety" of the proposed `execv()` call.
 

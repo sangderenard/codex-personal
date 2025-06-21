@@ -122,13 +122,32 @@ impl PolicyWatcher {
         Ok(())
     }
 
-    /// Registers a new tool and its risk score in the risk database.
+    /// Registers a new command in the risk database with a simple risk score.
     ///
-    /// This appends the tool and score to the `RISK_CSV_PATH` CSV file.
-    pub fn register_tool(&self, tool_name: &str, risk_score: f64) -> anyhow::Result<()> {
+    /// The risk score is duplicated across all threat categories. Environment
+    /// and flag must be specified to maintain CSV integrity. All translation
+    /// columns are filled with `none` as placeholders.
+    pub fn register_tool(
+        &self,
+        environment: &str,
+        binary: &str,
+        flag: &str,
+        risk_score: f64,
+    ) -> anyhow::Result<()> {
         let path = risk_csv_path();
         let mut content = std::fs::read_to_string(&path).unwrap_or_default();
-        content.push_str(&format!("\n{},{}", tool_name, risk_score));
+        let row = format!(
+            "\n{},{},{},{},{},{},{},{},none,none,none,none,none,none,none",
+            environment,
+            binary,
+            flag,
+            risk_score,
+            risk_score,
+            risk_score,
+            risk_score,
+            risk_score
+        );
+        content.push_str(&row);
         std::fs::write(&path, content).context("writing to risk database")?;
         Ok(())
     }

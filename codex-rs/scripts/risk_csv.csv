@@ -1,97 +1,101 @@
-Environment,Command,Argument,Data loss,Unauthorized Access,Data Integrity,Privacy Breach,Service Disruption,CmdMacOS,CmdLinux,CmdWinCmd,CmdWinPs,api,blackbox
-linux,rm,-rf /,5,1,5,2,3,rm,rm,del,del,none,none
-linux,cp,–force,2,1,2,1,1,cp,cp,copy,copy,none,none
-linux,mv,–force,3,1,3,1,1,mv,mv,move,move,none,none
-linux,chmod,777,2,3,2,1,1,chmod,chmod,none,none,none,none
-linux,chown,root:root,2,4,2,1,1,chown,chown,none,none,none,none
-linux,dd,if=/dev/zero of=/dev/sda,5,1,5,1,5,none,dd,none,none,none,none
-linux,mkfs,ext4 /dev/sdb1,5,1,5,1,5,none,mkfs,none,none,none,none
-linux,fdisk,-l,1,1,1,1,1,none,fdisk,none,none,none,none
-linux,parted,/dev/sda mklabel gpt,4,1,4,1,4,none,parted,none,none,none,none
+Environment,Binary,Flag,Data loss,Unauthorized Access,Data Integrity,Privacy Breach,Service Disruption,CmdMacOS,CmdLinux,CmdWinCmd,CmdWinPs,CmdWinWsl,api,blackbox
+linux,rm,-rf /,5,1,5,2,3,rm,rm,del,del,rm,none,none
+linux,rm,-r,5,1,5,2,3,rm,rm,del,del,rm,none,none
+linux,rm,-f,5,1,5,2,3,rm,rm,del,del,rm,none,none
+linux,cp,--force,2,1,2,1,1,cp,cp,copy,copy,cp,none,none
+linux,cp,-r,2,1,2,1,1,cp,cp,copy,copy,cp,none,none
+linux,cp,-i,1,1,1,1,1,cp,cp,copy,copy,cp,none,none
+linux,mv,--force,3,1,3,1,1,mv,mv,move,move,mv,none,none
+linux,chmod,777,2,3,2,1,1,chmod,chmod,none,none,chmod,none,none
+linux,chown,root:root,2,4,2,1,1,chown,chown,none,none,chown,none,none
+linux,dd,if=/dev/zero of=/dev/sda,5,1,5,1,5,none,dd,none,none,dd,none,none
+linux,mkfs,ext4 /dev/sdb1,5,1,5,1,5,none,mkfs,none,none,mkfs,none,none
+linux,fdisk,-l,1,1,1,1,1,none,fdisk,none,none,fdisk,none,none
+linux,parted,/dev/sda mklabel gpt,4,1,4,1,4,none,parted,none,none,parted,none,none
 linux,mount,-o remount,ro,1,1,1,1,2,none,mount,none,none,none,none
-linux,umount,-f /mnt,2,1,2,1,2,none,umount,none,none,none,none
-linux,tar,–extract,2,1,2,1,1,none,tar,none,none,none,none
-linux,gzip,-d file.gz,1,1,1,1,1,none,gzip,none,none,none,none
-linux,wget,–no-check-certificate,1,2,1,3,1,none,wget,none,none,none,none
-linux,curl,-O,1,1,1,2,1,none,curl,none,none,none,none
-linux,scp,-r,2,2,1,2,1,none,scp,none,none,none,none
-linux,ssh,-X,1,4,1,3,1,none,ssh,none,none,none,none
-linux,ps,aux,1,1,1,1,1,ps,ps,tasklist,tasklist,none,none
-linux,kill,-9 1,3,1,4,1,kill,kill,taskkill,taskkill,none,none
-linux,systemctl,stop sshd,2,1,2,1,4,none,systemctl,none,none,none,none
-linux,systemctl,disable network,3,1,2,1,5,none,systemctl,none,none,none,none
-linux,journalctl,-f,1,1,1,1,1,none,journalctl,none,none,none,none
-linux,apt-get,remove --purge,4,1,4,1,3,none,apt-get,none,none,none,none
-linux,yum,upgrade -y,2,1,2,1,2,none,yum,none,none,none,none
-linux,docker,rm -f,3,1,3,1,2,none,docker,none,none,none,none
-linux,iptables,-F,3,1,2,1,4,none,iptables,none,none,none,none
-linux,ifconfig,eth0 down,2,1,1,1,5,none,ifconfig,none,none,none,none
-linux,ip,link delete veth0,3,1,3,1,5,none,ip,none,none,none,none
-linux,netstat,-rn,1,1,1,1,1,none,netstat,none,none,none,none
-linux,ping,-f 8.8.8.8,2,1,1,1,3,none,ping,ping,ping,none,none
-linux,traceroute,-n,1,1,1,1,1,none,traceroute,none,none,none,none
-macos,rm,-rf /,5,1,5,2,3,rm,rm,del,del,none,none
-macos,cp,–force,2,1,2,1,1,cp,cp,copy,copy,none,none
-macos,mv,–force,3,1,3,1,1,mv,mv,move,move,none,none
-macos,chmod,777,2,3,2,1,1,chmod,chmod,none,none,none,none
-macos,chown,root:wheel,2,4,2,1,1,chown,chown,none,none,none,none
-macos,brew,uninstall --force,3,1,3,1,2,brew,none,none,none,none,none
-macos,defaults,write com.apple.finder AppleShowAllFiles YES,1,1,1,2,1,defaults,none,none,none,none,none
-macos,open,-a TextEdit,1,1,1,1,1,open,none,none,none,none,none
-macos,say,"-v Alex ""Hello""",1,1,1,1,1,say,none,none,none,none,none
-macos,networksetup,-setairportpower en0 off,2,1,1,1,4,networksetup,none,none,none,none,none
-macos,softwareupdate,-i --all,2,1,2,1,2,softwareupdate,none,none,none,none,none
-macos,spctl,--master-disable,1,4,1,3,1,spctl,none,none,none,none,none
-macos,pbcopy,<secret.txt,2,1,1,4,1,pbcopy,none,none,none,none,none
-macos,pbpaste,>out.txt,1,1,1,2,1,pbpaste,none,none,none,none,none
-macos,caffeinate,-u,1,1,1,1,2,caffeinate,none,none,none,none,none
-win64cmd,del,/f /q C:\Windows\System32\*,5,1,5,2,4,rm,rm,del,del,none,none
-win64cmd,copy,/y file1 file2,2,1,2,1,1,cp,cp,copy,copy,none,none
-win64cmd,move,/y C:\temp C:\backup,3,1,3,1,2,mv,mv,move,move,none,none
-win64cmd,ren,old.txt new.txt,1,1,1,1,1,none,none,ren,ren,none,none
-win64cmd,md,C:\NewFolder,1,1,1,1,1,none,none,md,md,none,none
-win64cmd,rd,/s /q C:\NewFolder,4,1,4,1,3,none,none,rd,rd,none,none
-win64cmd,format,C: /fs:NTFS /q,5,1,5,1,5,none,none,format,format,none,none
-win64cmd,chkdsk,C: /f,2,1,2,1,2,none,none,chkdsk,chkdsk,none,none
-win64cmd,attrib,+h secret.txt,1,1,1,3,1,none,none,attrib,attrib,none,none
-win64cmd,type,C:\secrets.txt,1,1,1,4,1,none,none,type,type,none,none
-win64cmd,findstr,/s /i password *.txt,1,2,1,4,1,grep,grep,findstr,findstr,none,none
-win64cmd,net user,Administrator /active:no,2,3,1,1,2,none,none,net user,net user,none,none
-win64cmd,net localgroup,Users JohnDoe /add,1,2,1,1,1,none,none,net localgroup,net localgroup,none,none
-win64cmd,sc,stop Spooler,2,1,2,1,3,none,none,sc,sc,none,none
-win64cmd,tasklist,/,1,1,1,1,1,none,none,tasklist,tasklist,none,none
-win64cmd,taskkill,/f /im notepad.exe,2,1,2,1,2,none,none,taskkill,taskkill,none,none
-win64cmd,ipconfig,/release,2,1,1,1,4,none,none,ipconfig,ipconfig,none,none
-win64cmd,ping,127.0.0.1 -t,1,1,1,1,1,none,ping,ping,ping,none,none
-win64cmd,tracert,-d 8.8.8.8,1,1,1,1,1,none,none,tracert,tracert,none,none
-win64cmd,route,delete 0.0.0.0,3,1,2,1,4,none,none,route,route,none,none
-win64cmd,shutdown,/s /t 0,3,1,2,1,5,none,none,shutdown,shutdown,none,none
-win64ps,Get-ChildItem,-Force,2,1,2,1,1,none,none,Get-ChildItem,Get-ChildItem,none,none
-win64ps,Copy-Item,-Recurse,2,1,2,1,1,none,none,Copy-Item,Copy-Item,none,none
-win64ps,Move-Item,-Force,3,1,3,1,1,none,none,Move-Item,Move-Item,none,none
-win64ps,Remove-Item,-Recurse -Force,5,1,5,2,3,none,none,Remove-Item,Remove-Item,none,none
-win64ps,Rename-Item,-NewName bad.txt,new.txt,1,1,1,1,1,none,none,Rename-Item,Rename-Item,none,none
-win64ps,New-Item,-ItemType Directory -Path C:\Test,1,1,1,1,1,none,none,New-Item,New-Item,none,none
-win64ps,Set-ItemProperty,-Name 'HKLM:\Software\Bad' -Value 0,3,1,3,1,none,none,Set-ItemProperty,Set-ItemProperty,none,none
-win64ps,Get-Service,-Name wuauserv,1,1,1,1,1,none,none,Get-Service,Get-Service,none,none
-win64ps,Start-Service,-Name Spooler,1,1,1,1,2,none,none,Start-Service,Start-Service,none,none
-win64ps,Stop-Service,-Name Spooler,2,1,2,1,3,none,none,Stop-Service,Stop-Service,none,none
-win64ps,Restart-Service,-Name Spooler,3,1,3,1,4,none,none,Restart-Service,Restart-Service,none,none
-win64ps,Get-Process,-Name svchost,1,1,1,1,1,none,none,Get-Process,Get-Process,none,none
-win64ps,Stop-Process,-Id 4 -Force,3,1,3,1,4,none,none,Stop-Process,Stop-Process,none,none
-win64ps,Get-EventLog,-LogName System -Newest 100,1,1,1,1,1,none,none,Get-EventLog,Get-EventLog,none,none
-win64ps,Clear-EventLog,-LogName Application,2,1,2,1,2,none,none,Clear-EventLog,Clear-EventLog,none,none
-win64ps,Get-Content,-Path C:\Secrets\*.txt,2,1,1,4,1,none,none,Get-Content,Get-Content,none,none
-win64ps,Set-Content,-Path C:\Temp\out.txt -Value data,2,1,2,1,1,none,none,Set-Content,Set-Content,none,none
-win64ps,Add-Content,-Path C:\Temp\log.txt -Value entry,1,1,1,1,1,none,none,Add-Content,Add-Content,none,none
-win64ps,Get-Command,-Name Invoke-WebRequest,1,1,1,1,1,none,none,Get-Command,Get-Command,none,none
-win64ps,Invoke-WebRequest,-Uri http://malicious,1,4,1,3,1,none,none,Invoke-WebRequest,Invoke-WebRequest,none,none
-win64ps,Get-Help,-Name Remove-Item,1,1,1,1,1,none,none,Get-Help,Get-Help,none,none
-win64ps,Test-Connection,-ComputerName 8.8.8.8 -Count 100,1,1,1,1,2,none,none,Test-Connection,Test-Connection,none,none
-win64ps,Get-NetIPAddress,-AddressFamily IPv4,1,1,1,1,1,none,none,Get-NetIPAddress,Get-NetIPAddress,none,none
-win64ps,Restart-Computer,-Force,3,1,2,1,5,none,none,Restart-Computer,Restart-Computer,none,none
-win64ps,Shutdown-Computer,-Force,3,1,2,1,5,none,none,Shutdown-Computer,Shutdown-Computer,none,none
-win64ps,Set-ExecutionPolicy,-Scope LocalMachine Unrestricted,1,4,2,3,1,none,none,Set-ExecutionPolicy,Set-ExecutionPolicy,none,none
-win64ps,Import-Module,-Name ActiveDirectory,1,1,1,1,1,none,none,Import-Module,Import-Module,none,none
-win64ps,New-LocalUser,-Name Test -NoPassword,2,1,1,2,1,none,none,New-LocalUser,New-LocalUser,none,none
-win64ps,Add-LocalGroupMember,-Group Administrators -Member Test,2,3,1,2,1,none,none,Add-LocalGroupMember,Add-LocalGroupMember,none,none
+linux,umount,-f /mnt,2,1,2,1,2,none,umount,none,none,umount,none,none
+linux,tar,--extract,2,1,2,1,1,none,tar,none,none,tar,none,none
+linux,gzip,-d file.gz,1,1,1,1,1,none,gzip,none,none,gzip,none,none
+linux,wget,--no-check-certificate,1,2,1,3,1,none,wget,none,none,wget,none,none
+linux,curl,-O,1,1,1,2,1,none,curl,none,none,curl,none,none
+linux,scp,-r,2,2,1,2,1,none,scp,none,none,scp,none,none
+linux,ssh,-X,1,4,1,3,1,none,ssh,none,none,ssh,none,none
+linux,ps,aux,1,1,1,1,1,ps,ps,tasklist,tasklist,ps,none,none
+linux,kill,-9 1,3,1,4,1,kill,kill,taskkill,taskkill,none,taskkill,none,
+linux,systemctl,stop sshd,2,1,2,1,4,none,systemctl,none,none,systemctl,none,none
+linux,systemctl,disable network,3,1,2,1,5,none,systemctl,none,none,systemctl,none,none
+linux,journalctl,-f,1,1,1,1,1,none,journalctl,none,none,journalctl,none,none
+linux,apt-get,remove --purge,4,1,4,1,3,none,apt-get,none,none,apt-get,none,none
+linux,yum,upgrade -y,2,1,2,1,2,none,yum,none,none,yum,none,none
+linux,docker,rm -f,3,1,3,1,2,none,docker,none,none,docker,none,none
+linux,iptables,-F,3,1,2,1,4,none,iptables,none,none,iptables,none,none
+linux,ifconfig,eth0 down,2,1,1,1,5,none,ifconfig,none,none,ifconfig,none,none
+linux,ip,link delete veth0,3,1,3,1,5,none,ip,none,none,ip,none,none
+linux,netstat,-rn,1,1,1,1,1,none,netstat,none,none,netstat,none,none
+linux,ping,-f 8.8.8.8,2,1,1,1,3,none,ping,ping,ping,ping,none,none
+linux,traceroute,-n,1,1,1,1,1,none,traceroute,none,none,traceroute,none,none
+macos,rm,-rf /,5,1,5,2,3,rm,rm,del,del,rm,none,none
+macos,cp,--force,2,1,2,1,1,cp,cp,copy,copy,cp,none,none
+macos,mv,--force,3,1,3,1,1,mv,mv,move,move,mv,none,none
+macos,chmod,777,2,3,2,1,1,chmod,chmod,none,none,chmod,none,none
+macos,chown,root:wheel,2,4,2,1,1,chown,chown,none,none,chown,none,none
+macos,brew,uninstall --force,3,1,3,1,2,brew,none,none,none,none,none,none
+macos,defaults,write com.apple.finder AppleShowAllFiles YES,1,1,1,2,1,defaults,none,none,none,none,none,none
+macos,open,-a TextEdit,1,1,1,1,1,open,none,none,none,none,none,none
+macos,say,"-v Alex ""Hello""",1,1,1,1,1,say,none,none,none,none,none,none
+macos,networksetup,-setairportpower en0 off,2,1,1,1,4,networksetup,none,none,none,none,none,none
+macos,softwareupdate,-i --all,2,1,2,1,2,softwareupdate,none,none,none,none,none,none
+macos,spctl,--master-disable,1,4,1,3,1,spctl,none,none,none,none,none,none
+macos,pbcopy,<secret.txt,2,1,1,4,1,pbcopy,none,none,none,none,none,none
+macos,pbpaste,>out.txt,1,1,1,2,1,pbpaste,none,none,none,none,none,none
+macos,caffeinate,-u,1,1,1,1,2,caffeinate,none,none,none,none,none,none
+win64cmd,del,/f /q C:\Windows\System32\*,5,1,5,2,4,rm,rm,del,del,none,none,none
+win64cmd,copy,/y file1 file2,2,1,2,1,1,cp,cp,copy,copy,none,none,none
+win64cmd,move,/y C:\temp C:\backup,3,1,3,1,2,mv,mv,move,move,none,none,none
+win64cmd,ren,old.txt new.txt,1,1,1,1,1,none,none,ren,ren,none,none,none
+win64cmd,md,C:\NewFolder,1,1,1,1,1,none,none,md,md,none,none,none
+win64cmd,rd,/s /q C:\NewFolder,4,1,4,1,3,none,none,rd,rd,none,none,none
+win64cmd,format,C: /fs:NTFS /q,5,1,5,1,5,none,none,format,format,none,none,none
+win64cmd,chkdsk,C: /f,2,1,2,1,2,none,none,chkdsk,chkdsk,none,none,none
+win64cmd,attrib,+h secret.txt,1,1,1,3,1,none,none,attrib,attrib,none,none,none
+win64cmd,type,C:\secrets.txt,1,1,1,4,1,none,none,type,type,none,none,none
+win64cmd,findstr,/s /i password *.txt,1,2,1,4,1,grep,grep,findstr,findstr,none,none,none
+win64cmd,net user,Administrator /active:no,2,3,1,1,2,none,none,net user,net user,none,none,none
+win64cmd,net localgroup,Users JohnDoe /add,1,2,1,1,1,none,none,net localgroup,net localgroup,none,none,none
+win64cmd,sc,stop Spooler,2,1,2,1,3,none,none,sc,sc,none,none,none
+win64cmd,tasklist,/,1,1,1,1,1,none,none,tasklist,tasklist,none,none,none
+win64cmd,taskkill,/f /im notepad.exe,2,1,2,1,2,none,none,taskkill,taskkill,none,none,none
+win64cmd,ipconfig,/release,2,1,1,1,4,none,none,ipconfig,ipconfig,none,none,none
+win64cmd,ping,127.0.0.1 -t,1,1,1,1,1,none,ping,ping,ping,none,none,none
+win64cmd,tracert,-d 8.8.8.8,1,1,1,1,1,none,none,tracert,tracert,none,none,none
+win64cmd,route,delete 0.0.0.0,3,1,2,1,4,none,none,route,route,none,none,none
+win64cmd,shutdown,/s /t 0,3,1,2,1,5,none,none,shutdown,shutdown,none,none,none
+win64ps,Get-ChildItem,-Force,2,1,2,1,1,none,none,Get-ChildItem,Get-ChildItem,none,none,none
+win64ps,Copy-Item,-Recurse,2,1,2,1,1,none,none,Copy-Item,Copy-Item,none,none,none
+win64ps,Move-Item,-Force,3,1,3,1,1,none,none,Move-Item,Move-Item,none,none,none
+win64ps,Remove-Item,-Recurse -Force,5,1,5,2,3,none,none,Remove-Item,Remove-Item,none,none,none
+win64ps,Rename-Item,-NewName bad.txt,new.txt,1,1,1,1,1,none,none,Rename-Item,none,Rename-Item,none
+win64ps,New-Item,-ItemType Directory -Path C:\Test,1,1,1,1,1,none,none,New-Item,New-Item,none,none,none
+win64ps,Set-ItemProperty,-Name 'HKLM:\Software\Bad' -Value 0,3,1,3,1,none,none,Set-ItemProperty,Set-ItemProperty,none,none,none,
+win64ps,Get-Service,-Name wuauserv,1,1,1,1,1,none,none,Get-Service,Get-Service,none,none,none
+win64ps,Start-Service,-Name Spooler,1,1,1,1,2,none,none,Start-Service,Start-Service,none,none,none
+win64ps,Stop-Service,-Name Spooler,2,1,2,1,3,none,none,Stop-Service,Stop-Service,none,none,none
+win64ps,Restart-Service,-Name Spooler,3,1,3,1,4,none,none,Restart-Service,Restart-Service,none,none,none
+win64ps,Get-Process,-Name svchost,1,1,1,1,1,none,none,Get-Process,Get-Process,none,none,none
+win64ps,Stop-Process,-Id 4 -Force,3,1,3,1,4,none,none,Stop-Process,Stop-Process,none,none,none
+win64ps,Get-EventLog,-LogName System -Newest 100,1,1,1,1,1,none,none,Get-EventLog,Get-EventLog,none,none,none
+win64ps,Clear-EventLog,-LogName Application,2,1,2,1,2,none,none,Clear-EventLog,Clear-EventLog,none,none,none
+win64ps,Get-Content,-Path C:\Secrets\*.txt,2,1,1,4,1,none,none,Get-Content,Get-Content,none,none,none
+win64ps,Set-Content,-Path C:\Temp\out.txt -Value data,2,1,2,1,1,none,none,Set-Content,Set-Content,none,none,none
+win64ps,Add-Content,-Path C:\Temp\log.txt -Value entry,1,1,1,1,1,none,none,Add-Content,Add-Content,none,none,none
+win64ps,Get-Command,-Name Invoke-WebRequest,1,1,1,1,1,none,none,Get-Command,Get-Command,none,none,none
+win64ps,Invoke-WebRequest,-Uri http://malicious,1,4,1,3,1,none,none,Invoke-WebRequest,Invoke-WebRequest,none,none,none
+win64ps,Get-Help,-Name Remove-Item,1,1,1,1,1,none,none,Get-Help,Get-Help,none,none,none
+win64ps,Test-Connection,-ComputerName 8.8.8.8 -Count 100,1,1,1,1,2,none,none,Test-Connection,Test-Connection,none,none,none
+win64ps,Get-NetIPAddress,-AddressFamily IPv4,1,1,1,1,1,none,none,Get-NetIPAddress,Get-NetIPAddress,none,none,none
+win64ps,Restart-Computer,-Force,3,1,2,1,5,none,none,Restart-Computer,Restart-Computer,none,none,none
+win64ps,Shutdown-Computer,-Force,3,1,2,1,5,none,none,Shutdown-Computer,Shutdown-Computer,none,none,none
+win64ps,Set-ExecutionPolicy,-Scope LocalMachine Unrestricted,1,4,2,3,1,none,none,Set-ExecutionPolicy,Set-ExecutionPolicy,none,none,none
+win64ps,Import-Module,-Name ActiveDirectory,1,1,1,1,1,none,none,Import-Module,Import-Module,none,none,none
+win64ps,New-LocalUser,-Name Test -NoPassword,2,1,1,2,1,none,none,New-LocalUser,New-LocalUser,none,none,none
+win64ps,Add-LocalGroupMember,-Group Administrators -Member Test,2,3,1,2,1,none,none,Add-LocalGroupMember,Add-LocalGroupMember,none,none,none
